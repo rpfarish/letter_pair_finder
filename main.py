@@ -176,10 +176,11 @@ def do_memo(c):
 
     # ----- Cycle Break -----
     new_buffer = pick_new_buffer(c, visit)
+    visit.append(new_buffer)
 
-    print(new_buffer)
     sol = memo_cube(new_buffer, c.move_dict)
-
+    if sol:
+        print(new_buffer)
     print(sol, 2)
     visit.append(new_buffer)
     print(c.move_dict[sol[-1]], 7)
@@ -191,12 +192,12 @@ def do_memo(c):
     visit.append(s)
 
     sol = memo_cube(s, c.move_dict)
-
-    print(s)
+    if sol:
+        print(s)
     print(sol, 4)
     print(c.move_dict[sol[-1]], 7)
 
-
+    
 try:
     do_memo(c)
 except IndexError:
@@ -216,3 +217,4 @@ except IndexError:
 # for nuffer in c.move_dict:
 #     if nuffer not in visit and c.adj[nuffer] not in visit:
 #         print(nuffer)
+
