@@ -2,12 +2,10 @@ from collections import deque
 from pprint import pprint
 from random import choice
 
-class Cube:
-    def __init__(self, scramble_file):
-        self.scramble_file = scramble_file
 
-        with open(self.scramble_file) as f:
-            self.scramble = f.readline().rstrip('\n').split(' ')
+class Cube:
+    def __init__(self, scramble):
+        self.scramble = scramble.rstrip('\n').split(' ')
 
         self.has_parity = not (len(self.scramble) - len(
             [move for move in self.scramble if move.endswith('2')])) % 2 == 0
@@ -146,6 +144,12 @@ class Cube:
         for move in self.scramble:
             self.do_move(move)
 
+    def buffer_is_solved(self):
+        return self.U[2] == 'U' and self.F[0] == 'K'
+
+    def buffer_is_flipped(self):
+        return self.U[2] == 'K' and self.F[0] == 'B'
+
     def is_solved(self):
         for key, value in self.move_dict.items():
             if key != value:
@@ -153,50 +157,98 @@ class Cube:
         else:
             return True
 
+    def memo(self):
 
-c = Cube("scrambles.txt")
-
-c.display_cube()
-
-print(f'the scramble has{" no" * (not c.has_parity)} parity')
-
-pprint(c.move_dict)
-
-curr = buffer = 'U'
-moves = c.move_dict
-curr = moves[curr]
-
-memo = []
-while moves:
-    new_memo = [curr]
-    while True:
+        curr = buffer = original_buffer = 'U'
+        moves = self.move_dict
         curr = moves[curr]
-        print(curr)
-        if curr != 'U' and curr != c.adj['U']:
-            new_memo.append(curr)
 
-        if curr == buffer or curr == c.adj[buffer]:
-            break
+        memo = []
+        while moves:
+            new_memo = [curr]
+            while True:
+                curr = moves[curr]
+                if curr != original_buffer and curr != self.adj[original_buffer]:
+                    new_memo.append(curr)
 
-    print(new_memo, 'new_memo')
-    for m in new_memo:
+                if curr == buffer or curr == self.adj[buffer]:
+                    break
 
-        try:
-            print('popping move', m)
-            moves.pop(m)
-            print('popping move adj', c.adj.get(m))
-            moves.pop(c.adj.get(m))
-        except KeyError:
-            break
-    else:
-        moves.pop(buffer)
-        moves.pop(c.adj.get(buffer))
-    memo += new_memo
-    print(memo, 'memo')
+            for m in new_memo:
+                try:
+                    moves.pop(m)
+                    moves.pop(self.adj.get(m))
+                except KeyError:
+                    break
+            else:
+                try:
+                    moves.pop(buffer)
+                    moves.pop(self.adj.get(buffer))
+                except KeyError:
+                    pass
 
-    if not moves:
-        break
-    print(moves, 'moves')
-    curr = buffer = choice(list(moves))
-    print('new buffer', buffer)
+            memo += new_memo
 
+            if not moves:
+                return [letter for letter in memo if letter != 'U' and letter != 'K']
+
+            curr = buffer = choice(list(moves))
+
+
+scramble_file = "scrambles.txt"
+
+with open(scramble_file) as f:
+    for number, scramble in enumerate(f.readlines()):
+        c = Cube(scramble)
+        print(number+1, scramble, end='')
+        print(f'//the scramble has{" no" * (not c.has_parity)} parity')
+        print('//',c.memo(), c.flipped_edges, '\n')
+
+# c.display_cube()
+#
+# print(f'the scramble has{" no" * (not c.has_parity)} parity')
+#
+# pprint(c.move_dict)
+#
+# memo = c.memo()
+#
+# print(memo)
+
+# curr = buffer = 'U'
+# moves = c.move_dict
+# curr = moves[curr]
+#
+# memo = []
+# while moves:
+#     new_memo = [curr]
+#     while True:
+#         curr = moves[curr]
+#         print(curr)
+#         if curr != 'U' and curr != c.adj['U']:
+#             new_memo.append(curr)
+#
+#         if curr == buffer or curr == c.adj[buffer]:
+#             break
+#
+#     print(new_memo, 'new_memo')
+#     for m in new_memo:
+#
+#         try:
+#             print('popping move', m)
+#             moves.pop(m)
+#             print('popping move adj', c.adj.get(m))
+#             moves.pop(c.adj.get(m))
+#         except KeyError:
+#             break
+#     else:
+#         moves.pop(buffer)
+#         moves.pop(c.adj.get(buffer))
+#     memo += new_memo
+#     print(memo, 'memo')
+#
+#     if not moves:
+#         break
+#     print(moves, 'moves')
+#     curr = buffer = choice(list(moves))
+#     print('new buffer', buffer)
+#
