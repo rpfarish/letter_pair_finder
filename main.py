@@ -1,28 +1,36 @@
 from collections import deque
-
+from pprint import pprint
+from random import choice
 
 class Cube:
+    def __init__(self, scramble_file):
+        self.scramble_file = scramble_file
 
-    def __init__(self):
+        with open(self.scramble_file) as f:
+            self.scramble = f.readline().rstrip('\n').split(' ')
 
-        print('Instantiated Object')
-        self.has_parity = False
+        self.has_parity = not (len(self.scramble) - len(
+            [move for move in self.scramble if move.endswith('2')])) % 2 == 0
+
         self.U = deque(['A', 'B', 'U', 'D'])
         self.L = deque(['E', 'F', 'G', 'H'])
         self.F = deque(['K', 'J', 'I', 'L'])
         self.R = deque(['M', 'N', 'O', 'P'])
         self.B = deque(['Z', 'R', 'S', 'T'])
         self.D = deque(['C', 'V', 'W', 'X'])
+
         self.all = self.U + self.L + self.F + self.R + self.B + self.D
         self.adj = {'A': 'Z', 'B': 'M', 'D': 'E', 'L': 'F', 'X': 'G', 'R': 'H', 'J': 'P', 'T': 'N', 'V': 'O', 'C': 'I',
                     'W': 'S', 'Z': 'A', 'M': 'B', 'E': 'D', 'F': 'L', 'G': 'X', 'H': 'R', 'P': 'J', 'N': 'T', 'O': 'V',
-                    'I': 'C', 'S': 'W', 'U': 'K', 'K': None}
+                    'I': 'C', 'S': 'W', 'U': 'K', 'K': 'U'}
+
         self.u_adj = [self.B, self.R, self.F, self.L]
         self.r_adj = [self.U, self.B, self.D, self.F]
         self.l_adj = [self.U, self.F, self.D, self.B]
         self.f_adj = [self.U, self.R, self.D, self.L]
         self.b_adj = [self.U, self.L, self.D, self.R]
         self.d_adj = [self.F, self.R, self.B, self.L]
+
         self.u_iadj = [0, 0, 0, 0]
         self.r_iadj = [1, 3, 1, 1]
         self.l_iadj = [3, 3, 3, 1]
@@ -30,37 +38,30 @@ class Cube:
         self.b_iadj = [0, 3, 2, 1]
         self.d_iadj = [2, 2, 2, 2]
 
-    def get_rotation(self, move):
-        if move == "'":
-            self.flip_parity()
-            return -1
-        elif move == '2':
-            return 2
-        elif move == '':
-            self.flip_parity()
-            return 1
+        if self.has_parity:
+            self.U[1], self.U[2] = self.U[2], self.U[1]
+            self.F[0], self.R[0] = self.R[0], self.F[0]
 
-    def flip_parity(self):
-        self.has_parity = not self.has_parity
+        self.scramble_cube()
 
     def do_move(self, move: str):
-        # todo check move is valid
+        rotations_map = {
+            "'": -1,
+            "2": 2,
+            "": 1,
+        }
+        rotation = rotations_map.get(move[1:], 1)
 
-        # get rotation
-        rotation = self.get_rotation(move[1:])
+        moves_map = {
+            'U': self._move_u,
+            'R': self._move_r,
+            'L': self._move_l,
+            'F': self._move_f,
+            'B': self._move_b,
+            'D': self._move_d,
+        }
 
-        if move.startswith('U'):
-            self._move_u(rotation)
-        elif move.startswith('R'):
-            self._move_r(rotation)
-        elif move.startswith('L'):
-            self._move_l(rotation)
-        elif move.startswith('F'):
-            self._move_f(rotation)
-        elif move.startswith('B'):
-            self._move_b(rotation)
-        elif move.startswith('D'):
-            self._move_d(rotation)
+        moves_map.get(move[:1])(rotation)
 
     def _move_u(self, rotation):
         self.U.rotate(rotation)
@@ -96,7 +97,7 @@ class Cube:
 
     def _move_b(self, rotation):
         self.B.rotate(rotation)
-        # rotate adjacent of the R side
+        # rotate adjacent of the B side
         s = deque([i[j] for i, j in zip(self.b_adj, self.b_iadj)])
         s.rotate(rotation)
         for n, adjobj in enumerate(self.b_adj):
@@ -104,11 +105,21 @@ class Cube:
 
     def _move_d(self, rotation):
         self.D.rotate(rotation)
-        # rotate adjacent of the R side
+        # rotate adjacent of the D side
         s = deque([i[j] for i, j in zip(self.d_adj, self.d_iadj)])
         s.rotate(rotation)
         for n, adjobj in enumerate(self.d_adj):
             adjobj[self.d_iadj[n]] = s[n]
+
+    @property
+    def solved_edges(self):
+        return [edge for edge, opp in zip(self.all, self.sides) if
+                self.adj[edge] == self.adj[opp] and edge != 'U' and edge != 'K']
+
+    @property
+    def flipped_edges(self):
+        return {edge: opp for edge, opp in zip(self.all, self.sides) if
+                edge == self.adj[opp] and edge != 'U' and edge != 'K'}
 
     @property
     def sides(self):
@@ -116,8 +127,13 @@ class Cube:
 
     @property
     def move_dict(self):
-        # Todo make this dependent on parity for UF-UR swap
-        return {default: current for default, current in zip(self.all, self.sides)}
+        solved = self.solved_edges
+        flipped = self.flipped_edges
+        return {
+            default: current
+            for default, current in zip(self.all, self.sides)
+            if default not in solved and default not in flipped
+        }
 
     def display_cube(self):
         for i, name in zip([self.U, self.L, self.F, self.R, self.B, self.D], 'ULFRBD'):
@@ -126,95 +142,61 @@ class Cube:
             print(f'{i[3]}     {i[1]}')
             print(f'   {i[2]}     \n')
 
+    def scramble_cube(self):
+        for move in self.scramble:
+            self.do_move(move)
 
-c = Cube()
+    def is_solved(self):
+        for key, value in self.move_dict.items():
+            if key != value:
+                return False
+        else:
+            return True
 
-with open("scrambles.txt", "r") as f:
-    scramble = f.readline()
-    if '\n' in scramble:
-        scramble = scramble.rstrip('\n')
-    for move in scramble.split(' '):
-        c.do_move(move)
+
+c = Cube("scrambles.txt")
 
 c.display_cube()
 
-print('scramle has parity', c.has_parity)
+print(f'the scramble has{" no" * (not c.has_parity)} parity')
 
+pprint(c.move_dict)
 
-def memo_cube(buffer, move_dict):
-    stack = [move_dict[buffer]]
-    visited = []
-    end = buffer  # what should end be?
-    while stack:
-        curr = stack.pop()
-        if curr == end or c.adj[end] == curr:
-            return visited
-        if curr not in visited and c.adj[curr] not in visited :
-            visited.append(curr)
+curr = buffer = 'U'
+moves = c.move_dict
+curr = moves[curr]
 
-        if (adj := move_dict[curr]) not in visited:
-            stack.append(adj)
+memo = []
+while moves:
+    new_memo = [curr]
+    while True:
+        curr = moves[curr]
+        print(curr)
+        if curr != 'U' and curr != c.adj['U']:
+            new_memo.append(curr)
 
+        if curr == buffer or curr == c.adj[buffer]:
+            break
 
-def pick_new_buffer(cube, visited):
-    for next_buffer in cube.move_dict:
-        if next_buffer not in visited and cube.adj[next_buffer] not in visited:
-            return next_buffer
+    print(new_memo, 'new_memo')
+    for m in new_memo:
+
+        try:
+            print('popping move', m)
+            moves.pop(m)
+            print('popping move adj', c.adj.get(m))
+            moves.pop(c.adj.get(m))
+        except KeyError:
+            break
     else:
-        return False
+        moves.pop(buffer)
+        moves.pop(c.adj.get(buffer))
+    memo += new_memo
+    print(memo, 'memo')
 
-
-def do_memo(c):
-
-    buffer = 'U'
-
-    # todo find and delete flipped edges
-    visit = memo_cube(buffer, c.move_dict)
-    print(visit)
-    # pick a new buffer
-    visit.append(c.adj['U'])
-
-    # ----- Cycle Break -----
-    new_buffer = pick_new_buffer(c, visit)
-    visit.append(new_buffer)
-
-    sol = memo_cube(new_buffer, c.move_dict)
-    if sol:
-        print(new_buffer)
-    print(sol, 2)
-    visit.append(new_buffer)
-    print(c.move_dict[sol[-1]], 7)
-
-    #
-
-    # ----- Cycle Break -----
-    s = pick_new_buffer(c, visit)
-    visit.append(s)
-
-    sol = memo_cube(s, c.move_dict)
-    if sol:
-        print(s)
-    print(sol, 4)
-    print(c.move_dict[sol[-1]], 7)
-
-    
-try:
-    do_memo(c)
-except IndexError:
-    pass
-
-# # ----- Cycle Break -----
-# new_buffer = pick_new_buffer(c, visit)
-# visit.append(new_buffer)
-#
-# print(new_buffer, 5)
-#
-# sol = memo_cube(new_buffer, c.move_dict)
-# print(sol, 6)
-# print(c.move_dict[sol[-1]], 7)
-# print()
-#
-# for nuffer in c.move_dict:
-#     if nuffer not in visit and c.adj[nuffer] not in visit:
-#         print(nuffer)
+    if not moves:
+        break
+    print(moves, 'moves')
+    curr = buffer = choice(list(moves))
+    print('new buffer', buffer)
 
