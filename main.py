@@ -1,254 +1,191 @@
+import random
 from collections import deque
-from pprint import pprint
-from random import choice
 
 
 class Cube:
-    def __init__(self, scramble):
-        self.scramble = scramble.rstrip('\n').split(' ')
+    def __init__(self, s, buffer='U'):
+        self.scramble = s.rstrip('\n').split(' ')
 
         self.has_parity = not (len(self.scramble) - len(
             [move for move in self.scramble if move.endswith('2')])) % 2 == 0
 
-        self.U = deque(['A', 'B', 'U', 'D'])
-        self.L = deque(['E', 'F', 'G', 'H'])
-        self.F = deque(['K', 'J', 'I', 'L'])
-        self.R = deque(['M', 'N', 'O', 'P'])
-        self.B = deque(['Z', 'R', 'S', 'T'])
-        self.D = deque(['C', 'V', 'W', 'X'])
+        self.U_edges = deque(['A', 'B', 'U', 'D'])
+        self.L_edges = deque(['E', 'F', 'G', 'H'])
+        self.F_edges = deque(['K', 'J', 'I', 'L'])
+        self.R_edges = deque(['M', 'N', 'O', 'P'])
+        self.B_edges = deque(['Z', 'R', 'S', 'T'])
+        self.D_edges = deque(['C', 'V', 'W', 'X'])
+        self.original_edge_buffer = buffer
+        self.orig_edges = self.U_edges + self.L_edges + self.F_edges + self.R_edges + self.B_edges + self.D_edges
+        self.adj_edges = {'A': 'Z', 'B': 'M', 'D': 'E', 'L': 'F', 'X': 'G', 'R': 'H', 'J': 'P', 'T': 'N', 'V': 'O',
+                          'C': 'I',
+                          'W': 'S', 'Z': 'A', 'M': 'B', 'E': 'D', 'F': 'L', 'G': 'X', 'H': 'R', 'P': 'J', 'N': 'T',
+                          'O': 'V',
+                          'I': 'C', 'S': 'W', 'U': 'K', 'K': 'U'}
 
-        self.all = self.U + self.L + self.F + self.R + self.B + self.D
-        self.adj = {'A': 'Z', 'B': 'M', 'D': 'E', 'L': 'F', 'X': 'G', 'R': 'H', 'J': 'P', 'T': 'N', 'V': 'O', 'C': 'I',
-                    'W': 'S', 'Z': 'A', 'M': 'B', 'E': 'D', 'F': 'L', 'G': 'X', 'H': 'R', 'P': 'J', 'N': 'T', 'O': 'V',
-                    'I': 'C', 'S': 'W', 'U': 'K', 'K': 'U'}
+        self.u_adj_edges = [self.B_edges, self.R_edges, self.F_edges, self.L_edges]
+        self.r_adj_edges = [self.U_edges, self.B_edges, self.D_edges, self.F_edges]
+        self.l_adj_edges = [self.U_edges, self.F_edges, self.D_edges, self.B_edges]
+        self.f_adj_edges = [self.U_edges, self.R_edges, self.D_edges, self.L_edges]
+        self.b_adj_edges = [self.U_edges, self.L_edges, self.D_edges, self.R_edges]
+        self.d_adj_edges = [self.F_edges, self.R_edges, self.B_edges, self.L_edges]
 
-        self.u_adj = [self.B, self.R, self.F, self.L]
-        self.r_adj = [self.U, self.B, self.D, self.F]
-        self.l_adj = [self.U, self.F, self.D, self.B]
-        self.f_adj = [self.U, self.R, self.D, self.L]
-        self.b_adj = [self.U, self.L, self.D, self.R]
-        self.d_adj = [self.F, self.R, self.B, self.L]
-
-        self.u_iadj = [0, 0, 0, 0]
-        self.r_iadj = [1, 3, 1, 1]
-        self.l_iadj = [3, 3, 3, 1]
-        self.f_iadj = [2, 3, 0, 1]
-        self.b_iadj = [0, 3, 2, 1]
-        self.d_iadj = [2, 2, 2, 2]
+        self.u_edges_adj_index = [0, 0, 0, 0]
+        self.r_edges_adj_index = [1, 3, 1, 1]
+        self.l_edges_adj_index = [3, 3, 3, 1]
+        self.f_edges_adj_index = [2, 3, 0, 1]
+        self.b_edges_adj_index = [0, 3, 2, 1]
+        self.d_edges_adj_index = [2, 2, 2, 2]
 
         if self.has_parity:
-            self.U[1], self.U[2] = self.U[2], self.U[1]
-            self.F[0], self.R[0] = self.R[0], self.F[0]
+            self.U_edges[1], self.U_edges[2] = self.U_edges[2], self.U_edges[1]
+            self.F_edges[0], self.R_edges[0] = self.R_edges[0], self.F_edges[0]
 
         self.scramble_cube()
 
     def do_move(self, move: str):
+        if not move:
+            return
         rotations_map = {
             "'": -1,
             "2": 2,
             "": 1,
         }
-        rotation = rotations_map.get(move[1:], 1)
+        rotation = rotations_map.get(move[1:], 0)
 
         moves_map = {
-            'U': self._move_u,
-            'R': self._move_r,
-            'L': self._move_l,
-            'F': self._move_f,
-            'B': self._move_b,
-            'D': self._move_d,
+            'U': (self.U_edges, self.u_adj_edges, self.u_edges_adj_index),
+            'R': (self.R_edges, self.r_adj_edges, self.r_edges_adj_index),
+            'L': (self.L_edges, self.l_adj_edges, self.l_edges_adj_index),
+            'F': (self.F_edges, self.f_adj_edges, self.f_edges_adj_index),
+            'B': (self.B_edges, self.b_adj_edges, self.b_edges_adj_index),
+            'D': (self.D_edges, self.d_adj_edges, self.d_edges_adj_index),
         }
 
-        moves_map.get(move[:1])(rotation)
+        side = moves_map.get(move[:1])
+        self._rotate_layer(rotation, *side)
 
-    def _move_u(self, rotation):
-        self.U.rotate(rotation)
-        # rotate adjacent of the U side
-        s = deque([i[j] for i, j in zip(self.u_adj, self.u_iadj)])
-        s.rotate(rotation)
-        for n, adjobj in enumerate(self.u_adj):
-            adjobj[self.u_iadj[n]] = s[n]
-
-    def _move_l(self, rotation):
-        self.L.rotate(rotation)
-        # rotate adjacent of the L side
-        s = deque([i[j] for i, j in zip(self.l_adj, self.l_iadj)])
-        s.rotate(rotation)
-        for n, adjobj in enumerate(self.l_adj):
-            adjobj[self.l_iadj[n]] = s[n]
-
-    def _move_f(self, rotation):
-        self.F.rotate(rotation)
-        # rotate adjacent of the F side
-        s = deque([i[j] for i, j in zip(self.f_adj, self.f_iadj)])
-        s.rotate(rotation)
-        for n, adjobj in enumerate(self.f_adj):
-            adjobj[self.f_iadj[n]] = s[n]
-
-    def _move_r(self, rotation):
-        self.R.rotate(rotation)
-        # rotate adjacent of the R side
-        s = deque([i[j] for i, j in zip(self.r_adj, self.r_iadj)])
-        s.rotate(rotation)
-        for n, adjobj in enumerate(self.r_adj):
-            adjobj[self.r_iadj[n]] = s[n]
-
-    def _move_b(self, rotation):
-        self.B.rotate(rotation)
-        # rotate adjacent of the B side
-        s = deque([i[j] for i, j in zip(self.b_adj, self.b_iadj)])
-        s.rotate(rotation)
-        for n, adjobj in enumerate(self.b_adj):
-            adjobj[self.b_iadj[n]] = s[n]
-
-    def _move_d(self, rotation):
-        self.D.rotate(rotation)
-        # rotate adjacent of the D side
-        s = deque([i[j] for i, j in zip(self.d_adj, self.d_iadj)])
-        s.rotate(rotation)
-        for n, adjobj in enumerate(self.d_adj):
-            adjobj[self.d_iadj[n]] = s[n]
+    @staticmethod
+    def _rotate_layer(rotation, face_edges, face_adj_edges, face_adj_index):
+        face_edges.rotate(rotation)
+        # rotate adjacent of the side edges
+        side = deque([i[j] for i, j in zip(face_adj_edges, face_adj_index)])
+        side.rotate(rotation)
+        for adj_side_obj, adj_index, side_slice in zip(face_adj_edges, face_adj_index, side):
+            adj_side_obj[adj_index] = side_slice
 
     @property
     def solved_edges(self):
-        return [edge for edge, opp in zip(self.all, self.sides) if
-                self.adj[edge] == self.adj[opp] and edge != 'U' and edge != 'K']
+        return [edge for edge, opp in zip(self.orig_edges, self.all_edges) if
+                self.adj_edges[edge] == self.adj_edges[opp]
+                and edge != self.original_edge_buffer and edge != self.adj_edges[self.original_edge_buffer]]
 
     @property
     def flipped_edges(self):
-        return {edge: opp for edge, opp in zip(self.all, self.sides) if
-                edge == self.adj[opp] and edge != 'U' and edge != 'K'}
+        return {edge: opp for edge, opp in zip(self.orig_edges, self.all_edges) if
+                edge == self.adj_edges[opp] and edge != self.original_edge_buffer and edge != self.adj_edges[
+                    self.original_edge_buffer]}
 
     @property
-    def sides(self):
-        return self.U + self.L + self.F + self.R + self.B + self.D
+    def all_edges(self):
+        return self.U_edges + self.L_edges + self.F_edges + self.R_edges + self.B_edges + self.D_edges
 
     @property
-    def move_dict(self):
+    def all_edges_list(self):
+        return [self.U_edges, self.L_edges, self.F_edges, self.R_edges, self.B_edges, self.D_edges]
+
+    @property
+    def edge_swaps(self):
         solved = self.solved_edges
         flipped = self.flipped_edges
         return {
             default: current
-            for default, current in zip(self.all, self.sides)
+            for default, current in zip(self.orig_edges, self.all_edges)
             if default not in solved and default not in flipped
         }
 
+    def cube_faces(self):
+        return {face: pieces for face, pieces in zip('ULFRBD', self.all_edges_list)}
+
     def display_cube(self):
-        for i, name in zip([self.U, self.L, self.F, self.R, self.B, self.D], 'ULFRBD'):
+        for name, e in self.cube_faces().items():
             print('-------', name, '-------')
-            print(f'   {i[0]}     ')
-            print(f'{i[3]}     {i[1]}')
-            print(f'   {i[2]}     \n')
+            print(f'   {e[0]}     ')
+            print(f'{e[3]}     {e[1]}')
+            print(f'   {e[2]}     \n')
 
     def scramble_cube(self):
         for move in self.scramble:
             self.do_move(move)
 
-    def buffer_is_solved(self):
-        return self.U[2] == 'U' and self.F[0] == 'K'
+    def edge_buffer_is_solved(self):
+        return self.U_edges[2] == self.original_edge_buffer and self.F_edges[0] == self.adj_edges[
+            self.original_edge_buffer]
 
-    def buffer_is_flipped(self):
-        return self.U[2] == 'K' and self.F[0] == 'B'
+    def edge_buffer_is_flipped(self):
+        return self.U_edges[2] == self.adj_edges[self.original_edge_buffer] and self.F_edges[
+            0] == self.original_edge_buffer
 
     def is_solved(self):
-        for key, value in self.move_dict.items():
+        for key, value in self.edge_swaps.items():
             if key != value:
                 return False
         else:
             return True
 
-    def memo(self):
-
-        curr = buffer = original_buffer = 'U'
-        moves = self.move_dict
+    def memo_edges(self):
+        curr = buffer = original_edge_buffer = self.original_edge_buffer
+        moves = self.edge_swaps
         curr = moves[curr]
-
         memo = []
         while moves:
             new_memo = [curr]
             while True:
                 curr = moves[curr]
-                if curr != original_buffer and curr != self.adj[original_buffer]:
+                if curr != original_edge_buffer and curr != self.adj_edges[original_edge_buffer]:
                     new_memo.append(curr)
-
-                if curr == buffer or curr == self.adj[buffer]:
+                if curr == buffer or curr == self.adj_edges[buffer]:
                     break
 
             for m in new_memo:
                 try:
                     moves.pop(m)
-                    moves.pop(self.adj.get(m))
+                    moves.pop(self.adj_edges.get(m))
                 except KeyError:
                     break
             else:
                 try:
                     moves.pop(buffer)
-                    moves.pop(self.adj.get(buffer))
+                    moves.pop(self.adj_edges.get(buffer))
                 except KeyError:
                     pass
 
             memo += new_memo
 
             if not moves:
-                return [letter for letter in memo if letter != 'U' and letter != 'K']
+                return [letter for letter in memo
+                        if letter != self.original_edge_buffer
+                        and letter != self.adj_edges[self.original_edge_buffer]]
 
-            curr = buffer = choice(list(moves))
+            for new_buffer in ['A', 'B', 'D', 'C', 'W', 'J', 'L', 'V', 'X']:
+                if new_buffer in moves:
+                    curr = buffer = new_buffer
+                    break
+                curr = buffer = random.choice(list(moves))
+            else:
+                pass
+
+
+def clean_edge_memo(memo):
+    return ' '.join([f'{memo[i]}{memo[i + 1]}' for i in range(0, len(memo) - 1, 2)])
 
 
 scramble_file = "scrambles.txt"
 
 with open(scramble_file) as f:
     for number, scramble in enumerate(f.readlines()):
-        c = Cube(scramble)
-        print(number+1, scramble, end='')
-        print(f'//the scramble has{" no" * (not c.has_parity)} parity')
-        print('//',c.memo(), c.flipped_edges, '\n')
-
-# c.display_cube()
-#
-# print(f'the scramble has{" no" * (not c.has_parity)} parity')
-#
-# pprint(c.move_dict)
-#
-# memo = c.memo()
-#
-# print(memo)
-
-# curr = buffer = 'U'
-# moves = c.move_dict
-# curr = moves[curr]
-#
-# memo = []
-# while moves:
-#     new_memo = [curr]
-#     while True:
-#         curr = moves[curr]
-#         print(curr)
-#         if curr != 'U' and curr != c.adj['U']:
-#             new_memo.append(curr)
-#
-#         if curr == buffer or curr == c.adj[buffer]:
-#             break
-#
-#     print(new_memo, 'new_memo')
-#     for m in new_memo:
-#
-#         try:
-#             print('popping move', m)
-#             moves.pop(m)
-#             print('popping move adj', c.adj.get(m))
-#             moves.pop(c.adj.get(m))
-#         except KeyError:
-#             break
-#     else:
-#         moves.pop(buffer)
-#         moves.pop(c.adj.get(buffer))
-#     memo += new_memo
-#     print(memo, 'memo')
-#
-#     if not moves:
-#         break
-#     print(moves, 'moves')
-#     curr = buffer = choice(list(moves))
-#     print('new buffer', buffer)
-#
+        cube = Cube(scramble)
+        cube.display_cube()
+        print(number + 1, scramble, end='')
+        print(f'//the scramble has{" no" * (not cube.has_parity)} parity')
+        print('//', clean_edge_memo(cube.memo_edges()), cube.flipped_edges, '\n')
