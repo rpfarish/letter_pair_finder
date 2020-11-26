@@ -2,6 +2,7 @@ import random
 from collections import deque
 from pprint import pprint
 
+
 class Cube:
     def __init__(self, s, corner_buffer='U', edge_buffer='U'):
         self.scramble = s.rstrip('\n').split(' ')
@@ -131,16 +132,28 @@ class Cube:
             adj_side_obj[j] = b
 
     @property
+    def solved_corners(self):
+        return [default for default, current in zip(self.default_corners, self.all_corners)
+                if default == current and default != self.default_corner_buffer
+                and default not in self.adj_corners[self.default_corner_buffer]
+                ]
+
+    # TODO twisted corners
+
+    @property
     def solved_edges(self):
-        return [edge for edge, opp in zip(self.default_edges, self.all_edges) if
-                self.adj_edges[edge] == self.adj_edges[opp]
-                and edge != self.default_edge_buffer and edge != self.adj_edges[self.default_edge_buffer]]
+        return [default for default, current in zip(self.default_edges, self.all_edges)
+                if self.adj_edges[default] == self.adj_edges[current]
+                and default != self.default_edge_buffer
+                and default != self.adj_edges[self.default_edge_buffer]
+                ]
 
     @property
     def flipped_edges(self):
-        return {edge: opp for edge, opp in zip(self.default_edges, self.all_edges) if
-                edge == self.adj_edges[opp] and edge != self.default_edge_buffer and edge != self.adj_edges[
-                    self.default_edge_buffer]}
+        return {default for default, current in zip(self.default_edges, self.all_edges)
+                if default == self.adj_edges[current] and default != self.default_edge_buffer
+                and default != self.adj_edges[self.default_edge_buffer]
+                }
 
     @property
     def all_edges(self):
@@ -170,9 +183,11 @@ class Cube:
 
     @property
     def corner_swaps(self):
+        solved = self.solved_corners
         return {
             default: current
             for default, current in zip(self.default_corners, self.all_corners)
+            if current not in solved
         }
 
     def cube_faces(self):
@@ -209,12 +224,38 @@ class Cube:
         moves = self.corner_swaps
         curr = moves[curr]
         memo = []
-        print(curr)
-        while True:
-            curr = moves[curr]
-            if curr == buffer or curr in self.adj_corners[buffer]:
-                break
-            print(curr)
+        while moves:
+            new_memo = [curr]
+            while True:
+                curr = moves[curr]
+                new_memo.append(curr)
+                if curr == buffer or curr in self.adj_corners[buffer]:
+                    break
+
+            for i in new_memo:
+                try:
+                    moves.pop(i)
+                    for j in self.adj_corners[i]:
+                        moves.pop(j)
+                except KeyError:
+                    pass
+
+            else:
+
+                try:
+                    moves.pop(buffer)
+                    for i in self.adj_corners[buffer]:
+                        moves.pop(i)
+                except KeyError:
+                    pass
+
+            memo += new_memo
+
+            if not moves:
+                return [m for m in memo if m not in self.adj_corners[self.default_corner_buffer]
+                        and m != self.default_corner_buffer]
+
+            curr = buffer = random.choice(list(moves))
 
     def memo_edges(self):
         curr = buffer = self.default_edge_buffer
@@ -274,3 +315,4 @@ with open(scramble_file) as f:
         print(f'//the scramble has{" no" * (not cube.has_parity)} parity')
         print('//', clean_edge_memo(cube.memo_edges()), cube.flipped_edges, '\n')
         print(cube.memo_corners())
+        print(cube.solved_corners)
