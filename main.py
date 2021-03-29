@@ -21,33 +21,22 @@ scramble_file = "scrambles.txt"
 #     return scramble
 
 
-def main(scramble):
-    number = 0
-    while True:
-        # with open(scramble_file) as f:
-        #     for number, scramble in ((1, scr),):  # enumerate(f.readlines()):
-        cube = Cube(scramble)
-        # cube.display_cube()
-        # pprint(cube.corner_swaps)
-        print("Solve Number:", number + 1)
-        number += 1
-        print(scramble, end='')
-        print(f'//The scramble has{" no" * (not cube.has_parity)} parity')
-        print("Edges:")
-        print('//', cube.clean_edge_memo(memo := cube.memo_edges()), cube.flipped_edges)
-        # print(memo)
-        print("Edge Buffers:")
-        print(cube.edge_memo_buffers)
-        print("Corners:")
-        print(cube.memo_corners())
-        print("Twisted Corners:")
-        print(cube.twisted_corners, "\n")
-        # print(cube.solved_corners)
-        while True:
-            # if scramble != foo():
-            #     scramble = foo()
-            #     break
-            return
+def main():
+    with open(scramble_file) as f:
+        for number, scramble in enumerate(f.readlines()):
+            cube = Cube(scramble)
+            print("Solve Number:", number + 1)
+            number += 1
+            print(f'The scramble has{" no" * (not cube.has_parity)} parity')
+            print(scramble)
+            print("Edges:")
+            print(cube.clean_edge_memo(cube.memo_edges()), cube.flipped_edges)
+            print("Edge Buffers:")
+            print(cube.edge_memo_buffers)
+            print("Corners:")
+            print(cube.memo_corners())
+            print("Twisted Corners:")
+            print(cube.twisted_corners, "\n")
 
 
 # make ui
@@ -57,5 +46,4 @@ def main(scramble):
 # todo create a context manager to add to each method
 
 if __name__ == '__main__':
-    main("B L' F2 B2 R' U2 F2 B U R2 B' D2 F' U2 B' D2 F L2 D2")
-    # pass
+    main()

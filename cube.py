@@ -9,8 +9,14 @@ class Cube:
         self.scramble = s.rstrip('\n').split(' ')
         self.faces = 'ULFRBD'
 
+        self.default_edge_buffer = EDGE_BUFFER
+        self.default_corner_buffer = CORNER_BUFFER
+        self.edge_memo_buffers = set()
+        self.corner_memo_buffers = None
+
         self.corner_buffer_order = [UBR, UBL, UFL, RDF, RDB, LDF, LDB]
-        self.edge_buffer_order = ['A', 'B', 'D', 'C', 'W', 'J', 'L', 'V', 'X']
+        self.edge_buffer_order = [UB, UR, UL, DF, FR, FL, DR, DL]
+
         self.has_parity = not (len(self.scramble) - len(
             [move for move in self.scramble if move.endswith('2')])) % 2 == 0
 
@@ -19,7 +25,6 @@ class Cube:
         self.F_corners = deque([FUL, FUR, FDR, FDL])
         self.R_corners = deque([RUF, RUB, RDB, RDF])
         self.B_corners = deque([BUR, BUL, BDL, BDR])
-
         self.D_corners = deque([DFL, DFR, DBR, DBL])
 
         self.U_edges = deque([UB, UR, UF, UL])
@@ -28,11 +33,6 @@ class Cube:
         self.R_edges = deque([RU, RB, RD, RF])
         self.B_edges = deque([BU, BL, BD, BR])
         self.D_edges = deque([DF, DR, DB, DL])
-
-        self.default_edge_buffer = EDGE_BUFFER
-        self.default_corner_buffer = CORNER_BUFFER
-        self.edge_memo_buffers = set()
-        self.corner_memo_buffers = None
 
         self.default_edges = self.U_edges + self.L_edges + self.F_edges + self.R_edges + self.B_edges + self.D_edges
         self.default_corners = self.U_corners + self.L_corners + self.F_corners + self.R_corners + self.B_corners + self.D_corners
@@ -45,11 +45,12 @@ class Cube:
         }
 
         self.adj_corners = {
-            'A': 'MJ', 'B': 'NR', 'C': 'LG', 'D': 'FE', 'E': 'DF',
-            'F': 'ED', 'G': 'CL', 'H': 'SZ', 'I': 'XU', 'J': 'AM', 'K': 'VP',
-            'L': 'GC', 'M': 'JA', 'N': 'RB', 'O': 'WT', 'P': 'KV',
-            'R': 'BN', 'S': 'ZH', 'T': 'OW', 'U': 'IX', 'V': 'PK', 'W': 'TO',
-            'X': 'UI', 'Z': 'HS'
+            UBL: BUL + LUB, UBR: RUB + BUR, UFR: FUR + RUF, UFL: LUF + FUL,
+            LUB: UBL + BUL, LUF: FUL + UFL, LDF: DFL + FDL, LDB: BDL + DBL,
+            FUL: UFL + LUF, FUR: RUF + UFR, FDR: DFR + RDF, FDL: LDF + DFL,
+            RUF: UFR + FUR, RUB: BUR + UBR, RDB: DBR + BDR, RDF: FDR + DFR,
+            BUR: UBR + RUB, BUL: LUB + UBL, BDL: DBL + LDB, BDR: RDB + DBR,
+            DFL: FDL + LDF, DFR: RDF + FDR, DBR: BDR + RDB, DBL: LDB + BDL
         }
 
         self.u_adj_edges = [self.B_edges, self.R_edges, self.F_edges, self.L_edges]
@@ -80,6 +81,7 @@ class Cube:
         self.b_adj_edges_index = [0, 3, 2, 1]
         self.d_adj_edges_index = [2, 2, 2, 2]
 
+        # UF-UR swap
         if self.has_parity:
             self.U_edges[1], self.U_edges[2] = self.U_edges[2], self.U_edges[1]
             self.F_edges[0], self.R_edges[0] = self.R_edges[0], self.F_edges[0]
@@ -245,20 +247,15 @@ class Cube:
                     break
 
             for i in new_memo:
-                try:
+                if i in moves:
                     moves.pop(i)
                     for j in self.adj_corners[i]:
                         moves.pop(j)
-                except KeyError:
-                    pass
-
             else:
-                try:
+                if buffer in moves:
                     moves.pop(buffer)
                     for i in self.adj_corners[buffer]:
                         moves.pop(i)
-                except KeyError:
-                    pass
 
             memo += new_memo
 
@@ -273,42 +270,47 @@ class Cube:
                 curr = buffer = random.choice(list(moves))
 
     def memo_edges(self):
-        curr = buffer = self.default_edge_buffer
-        moves = self.edge_swaps
-        curr = moves[curr]
+        buffer = self.default_edge_buffer
+        avail_moves = self.edge_swaps
+        def_buff = self.default_edge_buffer
+        def_buff_adj = self.adj_edges[self.default_edge_buffer]
+        curr = avail_moves[buffer]
         memo = []
-        while moves:
+        while avail_moves:
             new_memo = [curr]
+            # Memo until a cycle break
             while True:
-                curr = moves[curr]
+                curr = avail_moves[curr]
                 if curr != self.default_edge_buffer and curr != self.adj_edges[self.default_edge_buffer]:
                     new_memo.append(curr)
                 if curr == buffer or curr == self.adj_edges[buffer]:
                     break
 
+            # Remove memo and adj from avail
             for move in new_memo:
-                if move in moves:
-                    moves.pop(move)
-                    moves.pop(self.adj_edges.get(move))
+                if move in avail_moves:
+                    avail_moves.pop(move)
+                    avail_moves.pop(self.adj_edges.get(move))
 
-            if buffer in moves:
-                moves.pop(buffer)
-                moves.pop(self.adj_edges.get(buffer))
+            # Remove buffer and adj from avail
+            if buffer in avail_moves:
+                avail_moves.pop(buffer)
+                avail_moves.pop(self.adj_edges.get(buffer))
 
+            # Append the new memo onto the current memo
             memo += new_memo
 
-            if not moves:
-                return [letter for letter in memo
-                        if letter != self.default_edge_buffer
-                        and letter != self.adj_edges[self.default_edge_buffer]]
+            # Return the the memo when avail is empty
+            if not avail_moves:
+                return [letter for letter in memo if letter != def_buff and letter != def_buff_adj]
 
+            # Pick a new buffer
             for new_buffer in self.edge_buffer_order:
-                if new_buffer in moves:
+                if new_buffer in avail_moves:
                     curr = buffer = new_buffer
                     break
-                curr = buffer = random.choice(list(moves))
-            else:
-                pass
+                curr = buffer = random.choice(list(avail_moves))
+
             self.edge_memo_buffers.add(buffer)
 
     @staticmethod
