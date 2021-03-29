@@ -9,38 +9,39 @@ class Cube:
         self.scramble = s.rstrip('\n').split(' ')
         self.faces = 'ULFRBD'
 
-        self.default_edge_buffer = EDGE_BUFFER
-        self.default_corner_buffer = CORNER_BUFFER
-        self.edge_memo_buffers = set()
-        self.corner_memo_buffers = None
-
-        self.edge_buffer_order = ['A', 'B', 'D', 'C', 'W', 'J', 'L', 'V', 'X']
         self.corner_buffer_order = [UBR, UBL, UFL, RDF, RDB, LDF, LDB]
+        self.edge_buffer_order = ['A', 'B', 'D', 'C', 'W', 'J', 'L', 'V', 'X']
         self.has_parity = not (len(self.scramble) - len(
             [move for move in self.scramble if move.endswith('2')])) % 2 == 0
 
         self.U_corners = deque([UBL, UBR, UFR, UFL])
         self.L_corners = deque([LUB, LUF, LDF, LDB])
-        self.F_corners = deque([FUL, 'I', 'K', 'L'])
-        self.R_corners = deque(['X', 'N', RDB, RDF])
-        self.B_corners = deque(['R', 'M', 'S', 'T'])
-        self.D_corners = deque(['C', 'V', 'W', 'Z'])
+        self.F_corners = deque([FUL, FUR, FDR, FDL])
+        self.R_corners = deque([RUF, RUB, RDB, RDF])
+        self.B_corners = deque([BUR, BUL, BDL, BDR])
 
-        self.U_edges = deque(['A', 'B', 'U', 'D'])
-        self.L_edges = deque(['E', 'F', 'G', 'H'])
-        self.F_edges = deque(['K', 'J', 'I', 'L'])
-        self.R_edges = deque(['M', 'N', 'O', 'P'])
-        self.B_edges = deque(['Z', 'R', 'S', 'T'])
-        self.D_edges = deque(['C', 'V', 'W', 'X'])
+        self.D_corners = deque([DFL, DFR, DBR, DBL])
+
+        self.U_edges = deque([UB, UR, UF, UL])
+        self.L_edges = deque([LU, LF, LD, LB])
+        self.F_edges = deque([FU, FR, FD, FL])
+        self.R_edges = deque([RU, RB, RD, RF])
+        self.B_edges = deque([BU, BL, BD, BR])
+        self.D_edges = deque([DF, DR, DB, DL])
+
+        self.default_edge_buffer = EDGE_BUFFER
+        self.default_corner_buffer = CORNER_BUFFER
+        self.edge_memo_buffers = set()
+        self.corner_memo_buffers = None
 
         self.default_edges = self.U_edges + self.L_edges + self.F_edges + self.R_edges + self.B_edges + self.D_edges
         self.default_corners = self.U_corners + self.L_corners + self.F_corners + self.R_corners + self.B_corners + self.D_corners
         self.adj_edges = {
-            'A': 'Z', 'B': 'M', 'D': 'E', 'L': 'F', 'X': 'G',
-            'R': 'H', 'J': 'P', 'T': 'N', 'V': 'O', 'C': 'I',
-            'W': 'S', 'Z': 'A', 'M': 'B', 'E': 'D', 'F': 'L',
-            'G': 'X', 'H': 'R', 'P': 'J', 'N': 'T', 'O': 'V',
-            'I': 'C', 'S': 'W', 'U': 'K', 'K': 'U'
+            UB: BU, UR: RU, UL: LU, FL: LF, DL: LD,
+            BL: LB, FR: RF, BR: RB, DR: RD, DF: FD,
+            DB: BD, BU: UB, RU: UR, LU: UL, LF: FL,
+            LD: DL, LB: BL, RF: FR, RB: BR, RD: DR,
+            FD: DF, BD: DB, UF: FU, FU: UF
         }
 
         self.adj_corners = {
