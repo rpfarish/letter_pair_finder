@@ -35,14 +35,14 @@ def set_average(table, pair, average):
                        {'average': average, 'pair': pair})
 
 
-def get_all(table):
+def get_all(table='edges_cycle_averages'):
     with conn:
         cursor.execute(f"SELECT * FROM {table}")
 
-    return cursor.fetchall()
+    return dict(cursor.fetchall())
 
 
 curr_table = 'edges_cycle_averages'
 set_average(curr_table, 'QQ', 1.5)
 
-print(get_all(curr_table))
+# print(get_all(curr_table))

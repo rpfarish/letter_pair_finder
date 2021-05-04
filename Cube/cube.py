@@ -2,23 +2,26 @@ import random
 from collections import deque
 
 from Cube.letterscheme import *
+from database import get_all
+
+data_edges = get_all()
 
 
 class Cube:
     def __init__(self, s):
-        self.scramble = s.rstrip('\n').split(' ')
+        self.scramble = s.rstrip('\n').strip().split(' ')
         self.faces = 'ULFRBD'
 
         self.default_edge_buffer = EDGE_BUFFER
         self.default_corner_buffer = CORNER_BUFFER
         self.edge_memo_buffers = set()
-        self.corner_memo_buffers = None
+        self.corner_memo_buffers = set()
 
         self.corner_buffer_order = [UBR, UBL, UFL, RDF, RDB, LDF, LDB]
         self.edge_buffer_order = [UB, UR, UL, DF, FR, FL, DR, DL]
 
-        self.has_parity = not (len(self.scramble) - len(
-            [move for move in self.scramble if move.endswith('2')])) % 2 == 0
+        double_turns = [move for move in self.scramble if move.endswith('2')]
+        self.has_parity = (len(self.scramble) - len(double_turns)) % 2 == 1
 
         self.U_corners = deque([UBL, UBR, UFR, UFL])
         self.L_corners = deque([LUB, LUF, LDF, LDB])
@@ -94,6 +97,7 @@ class Cube:
         rotations_map = {
             "'": -1,
             "2": 2,
+            "2'": 2,
             "": 1,
         }
         rotation = rotations_map.get(move[1:], 0)
@@ -233,41 +237,62 @@ class Cube:
         else:
             return True
 
+    def get_new_corner_buffer(self, avail_moves):
+        for new_buffer in self.corner_buffer_order:
+            if new_buffer in avail_moves:
+                return new_buffer
+        else:
+            return random.choice(list(avail_moves))
+
     def memo_corners(self):
         curr = buffer = self.default_corner_buffer
-        moves = self.corner_swaps
-        curr = moves[curr]
+        avail_moves = self.corner_swaps
+        curr = avail_moves[curr]
         memo = []
-        while moves:
+        while avail_moves:
             new_memo = [curr]
+            # Memo until a cycle break
             while True:
-                curr = moves[curr]
+                curr = avail_moves[curr]
                 new_memo.append(curr)
                 if curr == buffer or curr in self.adj_corners[buffer]:
                     break
 
+            # Remove memo and adj from avail
             for i in new_memo:
-                if i in moves:
-                    moves.pop(i)
+                if i in avail_moves:
+                    avail_moves.pop(i)
                     for j in self.adj_corners[i]:
-                        moves.pop(j)
-            else:
-                if buffer in moves:
-                    moves.pop(buffer)
-                    for i in self.adj_corners[buffer]:
-                        moves.pop(i)
+                        avail_moves.pop(j)
 
+            # Remove buffer and adj from avail
+            if buffer in avail_moves:
+                avail_moves.pop(buffer)
+                for i in self.adj_corners[buffer]:
+                    avail_moves.pop(i)
+
+            # Append the new memo onto the current memo
             memo += new_memo
 
-            if not moves:
+            # Return the the memo when avail is empty
+            if not avail_moves:
                 return [m for m in memo if m not in self.adj_corners[self.default_corner_buffer]
                         and m != self.default_corner_buffer]
 
-            for new_buffer in self.corner_buffer_order:
-                if new_buffer in moves:
-                    curr = buffer = new_buffer
-                    break
-                curr = buffer = random.choice(list(moves))
+            # Pick a new corner buffer
+            curr = buffer = self.get_new_corner_buffer(avail_moves)
+            self.corner_memo_buffers.add(buffer)
+
+    def get_new_edge_buffer(self, avail_moves):
+        # # todo also check the other side of the buffer piece at first
+        # pairs = {(d := f'{new}{avail_moves[new]}'): data_edges[d] for new in self.edge_buffer_order if new in avail_moves}
+        # print(pairs, 'pairs')
+        # return min(pairs)
+        for new_buffer in self.edge_buffer_order:
+            if new_buffer in avail_moves:
+                return new_buffer
+        else:
+            return random.choice(list(avail_moves))
 
     def memo_edges(self):
         buffer = self.default_edge_buffer
@@ -304,15 +329,15 @@ class Cube:
             if not avail_moves:
                 return [letter for letter in memo if letter != def_buff and letter != def_buff_adj]
 
-            # Pick a new buffer
-            for new_buffer in self.edge_buffer_order:
-                if new_buffer in avail_moves:
-                    curr = buffer = new_buffer
-                    break
-                curr = buffer = random.choice(list(avail_moves))
-
+            # Pick a new edge buffer
+            curr = buffer = self.get_new_edge_buffer(avail_moves)
             self.edge_memo_buffers.add(buffer)
 
     @staticmethod
-    def clean_edge_memo(memo):
+    def format_edge_memo(memo):
         return ' '.join([f'{memo[i]}{memo[i + 1]}' for i in range(0, len(memo) - 1, 2)])
+
+    def format_corner_memo(self, memo):
+        parity_target = memo.pop() if self.has_parity else ''
+        memo = self.format_edge_memo(memo) + f" {parity_target}"
+        return memo.strip()
