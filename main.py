@@ -1,24 +1,10 @@
 """Finds letter pairs from cube scrambles"""
 
-from cube import Cube
+from Cube.cube import Cube
 
 # import database
 # import ui_interface
 scramble_file = "scrambles.txt"
-
-
-# PATH = r"C:\Users\rpfar\chromedriver.exe"
-# driver = webdriver.Chrome(PATH)
-# driver.get("https://cstimer.net")
-# search = driver.find_element_by_id("scrambleDiv")
-# dude = search.text.find("last/next scramble")
-# scramble = search.text[526 + 18:].strip("\n")
-
-
-# def foo():
-#     search = driver.find_element_by_id("scrambleDiv")
-#     scramble = search.text[526 + 18:].strip("\n")
-#     return scramble
 
 
 def main():
@@ -40,8 +26,7 @@ def main():
 
 
 # make ui
-# make database
-# make todo list
+# todo finish importing database letter pairs
 
 # todo create a context manager to add to each method
 

@@ -1,7 +1,7 @@
 import random
 from collections import deque
 
-from letterscheme import *
+from Cube.letterscheme import *
 
 
 class Cube:

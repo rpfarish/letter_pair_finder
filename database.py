@@ -2,7 +2,7 @@
 import sqlite3
 
 # init database
-conn = sqlite3.connect('cube_data.db')
+conn = sqlite3.connect('Cube/cube_data.db')
 cursor = conn.cursor()
 
 cursor.execute("""CREATE TABLE IF NOT EXISTS edges_cycle_averages (
