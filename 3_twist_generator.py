@@ -7,10 +7,10 @@ from Cube.cube import Cube
 from face_side_names import *
 
 
-def invert_solution(solution):
-    solution = solution.rstrip('\n').strip().split(' ')[:]
+def invert_solution(s):
+    s = s.rstrip('\n').strip().split(' ')[:]
     inverse = []
-    for move in reversed(solution):
+    for move in reversed(s):
         if move.endswith("'"):
             inverse.append(move.strip("'"))
         elif move.endswith("2"):
@@ -21,7 +21,7 @@ def invert_solution(solution):
 
 
 class ColoredCube(Cube):
-    def __init__(self, s, letterscheme='kociemba'):
+    def __init__(self, s="", letterscheme='kociemba'):
         self.scramble = s.rstrip('\n').strip().split(' ')[:]
         self.faces = "ULFRBD"
         self.kociemba_order = "URFDLB"
@@ -120,36 +120,57 @@ class ColoredCube(Cube):
 
 
 ud_stickers = ["UBL", "UBR", "UFL", "DFL", "DFR", "DBR", "DBL"]
-orientation = ["CW", "CCW"]
+orientations = ["CW", "CCW"]
 
 # solution = kociemba.solve('DRLUUBFBRBLURRLRUBLRDDFDLFUFUFFDBRDUBRUFLLFDDBFLUBLRBD')
 # print(solution)
 # print(len('DRLUUBFBRBLURRLRUBLRDDFDLFUFUFFDBRDUBRUFLLFDDBFLUBLRBD'))
-cw_twists = {
-    "UBL": "R U R D R' D' R D R' U' R D' R' D R D' R2",
-    "UBR": "R D R' D' R D R' U' R D' R' D R D' R' U",
-    "UFL": "U' R' D R D' R' D R U R' D' R D R' D' R",
-    "DFL": "U R U' R' D R U R' U' R U R' D' R U' R'",
-    "DFR": "D' U' R' D R U R' D' R D R' D' R U' R' D R U",
-    "DBR": "U R U' R' D' R U R' U' R U R' D R U' R'",
-    "DBL": "D' R D R' U' R D' R' D R D' R' U R D R'"
+twists = {
+    "CW": {
+        "UBL": "R U R D R' D' R D R' U' R D' R' D R D' R2",
+        "UBR": "R D R' D' R D R' U' R D' R' D R D' R' U",
+        "UFL": "U' R' D R D' R' D R U R' D' R D R' D' R",
+        "DFL": "U R U' R' D R U R' U' R U R' D' R U' R'",
+        "DFR": "D' U' R' D R U R' D' R D R' D' R U' R' D R U",
+        "DBR": "U R U' R' D' R U R' U' R U R' D R U' R'",
+        "DBL": "D' R D R' U' R D' R' D R D' R' U R D R'"
+    },
+    "CCW": {
+        "UBL": "R2 D R' D' R D R' U R D' R' D R D' R' U' R'",
+        "UBR": "U' R D R' D' R D R' U R D' R' D R D' R'",
+        "UFL": "R' D R D' R' D R U' R' D' R D R' D' R U",
+        "DFL": "R U R' D R U' R' U R U' R' D' R U R' U'",
+        "DFR": "U' R' D' R U R' D R D' R' D R U' R' D' R U D",
+        "DBR": "R U R' D' R U' R' U R U' R' D R U R' U'",
+        "DBL": "R D' R' U' R D R' D' R D R' U R D' R' D",
+    }
 }
+from itertools import combinations
 
-ccw_twist = {
-    "UBL": "R2 D R' D' R D R' U R D' R' D R D' R' U' R'",
-    "UBR": "U' R D R' D' R D R' U R D' R' D R D' R'",
-    "UFL": "R' D R D' R' D R U' R' D' R D R' D' R U",
-    "DFL": "R U R' D R U' R' U R U' R' D' R U R' U'",
-    "DFR": "U' R' D' R U R' D R D' R' D R U' R' D' R U D",
-    "DBR": "R U R' D' R U' R' U R U' R' D R U R' U'",
-    "DBL": "R D' R' U' R D R' D' R D R' U R D' R' D",
-}
-
+# pprint(list(combinations(twists["CW"].values(), r=2)))
+# pprint(list(combinations(twists["CCW"].values(), r=2)))
+a = list(combinations(twists["CW"].values(), r=2))
+b = list(combinations(twists["CCW"].values(), r=2))
+print(len(a), len(b))
+t = a + b
 last_solution = None
+choose_all_once = True
+
 while True:
-    corner1, corner2 = random.sample(ud_stickers, k=2)
-    twists = cw_twists[corner1] + " " + cw_twists[corner2]
-    cube = ColoredCube(twists)
+    if not t:
+        break
+
+    if choose_all_once:
+        c1, c2 = c = random.choice(t)
+        t.remove(c)
+        twists_combo = c1 + " " + c2
+    else:
+        corner1, corner2 = random.sample(ud_stickers, k=2)
+        orientation = random.choice(orientations)
+        twists_combo = twists[orientation][corner1] + " " + twists[orientation][corner2]
+
+    cube = ColoredCube(twists_combo)
+
     solution = kociemba.solve(cube.get_faces_colors())
     if solution != last_solution:
         print(solution, end="")

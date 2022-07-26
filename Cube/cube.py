@@ -8,7 +8,7 @@ data_edges = get_all()
 
 
 class Cube:
-    def __init__(self, s):
+    def __init__(self, s="", can_parity_swap=True):
         self.scramble = s.rstrip('\n').strip().split(' ')
         self.faces = 'ULFRBD'
 
@@ -20,7 +20,7 @@ class Cube:
         self.corner_buffer_order = [UBR, UBL, UFL, RDF, RDB, LDF, LDB]
         self.edge_buffer_order = [UB, UR, UL, DF, FR, FL, DR, DL]
 
-        double_turns = [move for move in self.scramble if move.endswith('2')]
+        double_turns = [move for move in self.scramble if '2' in move]
         self.has_parity = (len(self.scramble) - len(double_turns)) % 2 == 1
 
         self.U_corners = deque([UBL, UBR, UFR, UFL])
@@ -85,11 +85,21 @@ class Cube:
         self.d_adj_edges_index = [2, 2, 2, 2]
 
         # UF-UR swap
-        if self.has_parity:
+        if self.has_parity and can_parity_swap:
             self.U_edges[1], self.U_edges[2] = self.U_edges[2], self.U_edges[1]
             self.F_edges[0], self.R_edges[0] = self.R_edges[0], self.F_edges[0]
 
         self.scramble_cube()
+
+    def __eq__(self, other):
+        for (edges, corners), (edges2, corners2) in zip(self.cube_faces().values(), other.cube_faces().values()):
+            if edges != edges2 or corners != corners2:
+                return False
+        else:
+            return True
+
+    def __ne__(self, other):
+        return not self == other
 
     def do_move(self, move: str):
         if not move:
@@ -99,6 +109,8 @@ class Cube:
             "2": 2,
             "2'": 2,
             "": 1,
+            "3": -1,
+            "3'": 1,
         }
         rotation = rotations_map.get(move[1:], 0)
 
