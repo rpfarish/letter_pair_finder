@@ -4,10 +4,87 @@ from collections import deque
 import kociemba
 
 from Cube.cube import Cube
-from face_side_names import *
-from get_scrambles import get_scramble
+from get_scrambles import gen_premove
 
-DEBUG = True
+DEBUG = 0
+
+# U Face
+UB = 'U'
+UR = 'U'
+UF = 'U'
+UL = 'U'
+
+# L Face
+LU = 'L'
+LF = 'L'
+LD = 'L'
+LB = 'L'
+
+# F Face
+FU = 'F'
+FR = 'F'
+FD = 'F'
+FL = 'F'
+
+# R Face
+RU = 'R'
+RB = 'R'
+RD = 'R'
+RF = 'R'
+
+# B Face
+BU = 'B'
+BL = 'B'
+BD = 'B'
+BR = 'B'
+
+# D Face
+DF = 'D'
+DR = 'D'
+DB = 'D'
+DL = 'D'
+
+# -------CORNERS--------
+
+# U Face
+UBL = 'U'
+UBR = 'U'
+UFR = 'U'
+UFL = 'U'
+
+# L Face
+LUB = 'L'
+LUF = 'L'
+LDF = 'L'
+LDB = 'L'
+
+# F Face
+FUL = 'F'
+FUR = 'F'
+FDR = 'F'
+FDL = 'F'
+
+# R Face
+RUF = 'R'
+RUB = 'R'
+RDB = 'R'
+RDF = 'R'
+
+# B Face
+BUR = 'B'
+BUL = 'B'
+BDL = 'B'
+BDR = 'B'
+
+# D Face
+DFL = 'D'
+DFR = 'D'
+DBR = 'D'
+DBL = 'D'
+
+# -----BUFFERS------
+EDGE_BUFFER = UF
+CORNER_BUFFER = UFR
 
 
 class ColoredCube(Cube):
@@ -15,6 +92,7 @@ class ColoredCube(Cube):
         self.scramble = s.rstrip('\n').strip().split(' ')[:]
         self.faces = "ULFRBD"
         self.kociemba_order = "URFDLB"
+        self.slices = 'MSE'
 
         self.default_edge_buffer = EDGE_BUFFER
         self.default_corner_buffer = CORNER_BUFFER
@@ -88,6 +166,37 @@ class ColoredCube(Cube):
         self.b_adj_edges_index = [0, 3, 2, 1]
         self.d_adj_edges_index = [2, 2, 2, 2]
 
+        # Starting from UF following L
+        self.m_edges_index = [2, 2, 2, 0]
+        self.m_adj_edges_index = [0, 0, 2, 0]
+        # Starting from UR following F
+        self.s_edges_index = [1, 2, 3, 0]
+        self.s_adj_edges_index = [0, 1, 2, 3]
+        # Starting from FR following D
+        self.e_edges_index = [1, 1, 1, 1]
+        self.e_adj_edges_index = [3, 3, 3, 3]
+
+        self.wide_moves = {
+            'u': ("E", -1),
+            'r': ('M', -1),
+            'f': ('S', 1),
+            'l': ('M', 1),
+            'd': ('E', 1),
+            'b': ('S', -1),
+        }
+        self.rotations_map = {
+            "'": -1,
+            "2": 2,
+            "2'": 2,
+            "": 1,
+            "3": -1,
+            "3'": 1,
+            -1: "'",
+            1: "",
+            2: "2",
+            -2: "2",
+        }
+
         self.scramble_cube()
 
     def get_faces_colors(self):
@@ -122,11 +231,63 @@ def invert_solution(s: str) -> str:
     return " ".join(inverse)
 
 
+def parallel_cancel(pre_move: list, solution: list):
+    s = solution.copy()
+    pre_move_len = len(pre_move)
+    solution_move_len = len(solution)
+
+    solution = pre_move + solution
+    # todo figure out why this is needed
+    # post_move = "F' D2 R'"
+    # k_sol = "R D2 F2 R2 F' U' B U' B U' L2 F2 U' R2 U F2 D' L2 U'"
+    if '' in solution:
+        solution.remove('')
+    opp = {'U': 'D', 'D': 'U',
+           'F': 'B', 'B': 'F',
+           'L': 'R', 'R': 'L',
+           }
+    for i in range(len(solution) - 3):
+        if DEBUG: print("SOLUTION", solution)
+        first_layer = solution[i][0]
+        first_turn = solution[i]
+        second_layer = solution[i + 1][0]
+        third_layer = solution[i + 2][0]
+        third_turn = solution[i + 2]
+        if first_layer == third_layer and first_layer == opp[second_layer]:
+            canceled_cube = ColoredCube(first_turn + " " + third_turn)
+            # todo convert to using combined rotation and simplifying
+            kociemba_solution = invert_solution(kociemba.solve(canceled_cube.get_faces_colors())).split()
+            if DEBUG: print('k sol', kociemba_solution)
+
+            if i < pre_move_len:
+                pre_move[i] = " ".join(kociemba_solution)
+            if i + 2 < pre_move_len:
+                pre_move[i + 2] = ''
+
+            if i >= pre_move_len:
+                s[i - pre_move_len] = kociemba_solution
+            if i + 2 >= pre_move_len:
+                s[i + 2 - pre_move_len] = ''
+            if DEBUG: print(pre_move)
+            if DEBUG: print(solution)
+            if '' in pre_move:
+                pre_move.remove('')
+            if '' in s:
+                s.remove('')
+
+            return parallel_cancel(pre_move, s)
+            # kociemba_solution
+
+    return pre_move, s
+
+
 def cancel(pre_move, solution):
     # todo find a way to also cancel U D U moves
-    # aka check for parallel cancelations
+    # aka check for parallel cancellations
     solution = solution.rstrip('\n').strip().split(' ')[:]
     pre_move = pre_move.rstrip('\n').strip().split(' ')[:]
+    # checking for parallel cancel
+    pre_move, solution = parallel_cancel(pre_move, solution)
     rev_premove = pre_move[::-1]
     if DEBUG: print(solution, pre_move, rev_premove, sep=" || ")
     solved = ColoredCube()
@@ -155,10 +316,10 @@ def cancel(pre_move, solution):
 
             return cancel(" ".join(rev_premove[::-1]), " ".join(solution))
 
-
         # partial cancel
         elif pre[0] == s[0] and depth < 1:
             canceled_cube = ColoredCube(pre + " " + s)
+            # todo convert to using combined rotation and simplifying
             kociemba_solution = invert_solution(kociemba.solve(canceled_cube.get_faces_colors())).split()
             if DEBUG: print('k sol', kociemba_solution)
 
@@ -167,151 +328,134 @@ def cancel(pre_move, solution):
             rev_premove.remove(pre)
             solution.remove(s)
             solution = kociemba_solution + solution
-
+            return cancel(" ".join(rev_premove[::-1]), " ".join(solution))
+        break
     if DEBUG: print("Returning", " ".join(rev_premove[::-1]), " ".join(solution), sep=" || ")
-    return " ".join(rev_premove[::-1]) + " " + " ".join(solution)
-    # if partial cancel return simplified version
+    return " ".join(rev_premove[::-1]) + " " + " ".join(solution).strip()
+
+
+# if partial cancel return simplified version
 
 
 # if full cancel return removed full cancel and recurse
 
 
-# def remove_cancellations(premove, sol):
-#     sol = sol.rstrip('\n').strip().split(' ')[:]
-#     premove = premove.rstrip('\n').strip().split(' ')[:]
-#     rev_premove = premove[::-1]
-#
-#     if DEBUG: print(premove, sol)
-#     d = ColoredCube(rev_premove[0] + " " + sol[0])
-#     k = ColoredCube("")
-#
-#     first_moves_cancel = d == k
-#
-#     if first_moves_cancel:
-#         rev_move = rev_premove.pop(0)
-#         sol_move = sol.pop(0)
-#         d = ColoredCube(rev_move + " " + sol_move)
-#         sol = kociemba.solve(d.get_faces_colors()).split() + sol
-#         print(sol)
-#     for alfred, james in zip(rev_premove.copy(), sol.copy()):
-#         d = ColoredCube(alfred + " " + james)
-#         k = ColoredCube("")
-#         if DEBUG: ("alf and james", alfred, "||", james)
-#
-#         if DEBUG: print(alfred[0], james[0])
-#         # if moves cancel inversely
-#         if d == k and first_moves_cancel:
-#             if DEBUG: print("apparently the moves cancel", alfred, "||",  james)
-#
-#             rev_premove.remove(alfred)
-#             sol.remove(james)
-#
-#         # if the moves cancel proportionally
-#         elif alfred[0] == james[0] and first_moves_cancel:
-#             if DEBUG: print("are you going to be good alf and james",  alfred, "||", james)
-#             kociemba_solution = invert_solution(kociemba.solve(d.get_faces_colors())).split()
-#             if DEBUG: print('k sol', kociemba_solution)
-#
-#             # kociemba_solution
-#             if DEBUG: print(rev_premove)
-#             rev_premove.remove(alfred)
-#             sol.remove(james)
-#             sol = kociemba_solution + sol
-#             break
-#         else:
-#             if DEBUG: print("Neither condition was met")
-#
-#     return " ".join(rev_premove[::-1]) + " " + " ".join(sol)
-
-
-# a = remove_cancellations("U F2 D", "U F' U B2 U' F R2")
-# print(a)
-# quit()
-
-
-def has_cancellations(premove: list[str], sol: list[str]):
-    if sol[0].startswith(premove[-1][0]):
-        return True
-    return False
-
-
-def generate_premoves(scramble, min_len, max_len):
-    premove_max_len = random.randint(min_len, max_len)
-    premove_len = 0
-    premoves = []
-    premoves_faces = []
-    faces = ['U', 'L', 'F', 'R', 'B', 'D']
-    turns = ["", "'", "2"]
-    scramble = scramble.split()
-    a, b, *_ = scramble
-    while premove_len < premove_max_len:
-        face = random.choice(faces)
-        # print(scramble)
-        print(f"{face}, {a[0]}, {b[0]}, {premoves_faces}, {' '.join(scramble)}")
-        print(face not in (a[0], b[0]), face not in premoves_faces)
-        if face not in (a[0], b[0]) and face not in premoves_faces:
-            turn = random.choice(turns)
-            premoves.append(face + turn)
-            premoves_faces.append(face)
-            premove_len += 1
-
-    return premoves
-
-
-# solution = kociemba.solve('DRLUUBFBRBLURRLRUBLRDDFDLFUFUFFDBRDUBRUFLLFDDBFLUBLRBD')
-# print(solution)
-# print(len('DRLUUBFBRBLURRLRUBLRDDFDLFUFUFFDBRDUBRUFLLFDDBFLUBLRBD'))
-
-algs = [
-    "R U R' U' R' F R2 U' R' U' R U R' F'",
-    # "U R U R2' D' R U R' D R2 U2' R'",
-    # "R' D' R U R' D R2 U' R' U R U R' U' R U R' U",
-    # "U' R' U2 R U R2' D' R U R' D R2 U2'",
-    # "U R U R' U R2 D R' U' R D' R' U' R'",
-    # "R' D R' U R D' R' U R2 U' R2' U' R2 U'",
-    # "U R' D' R U R' D R2 U R' U2 R U R' U'",
-]
-
-last_solution = None
-
-while True:
-    if not algs:
-        break
-
-    alg: str = random.choice(algs)
-    # algs.remove(c)
-
-    post_move = " ".join(get_scramble().split()[:random.randint(1, 3)])
-    if DEBUG: print(post_move)
-
-    alg += " " + post_move
-    cube = ColoredCube(alg)
-    k_sol = kociemba.solve(cube.get_faces_colors())
-
-    if DEBUG: print("SETUP:", post_move, alg, sep=" || ")
-
-    # DEBUGGING
-    # post_move = "F D U2"
-    # k_sol = "U2 D2 F U' F' D F U F2 R2 U2 R2 U' R2 U' R2 U'"
-    print("//", post_move, "||", k_sol)
-    # print("F D' F U' F' D F U F2 R2 U2 R2 U' R2 U' R2 U'", "---Expected")
-
-    solution = cancel(post_move, k_sol)
-    # if has_cancellations(post_move, k_sol):
-    #     while True:
-    #         post_move = get_scramble().split(" ")[:random.randint(1, 3)]
-    #         post_move = " " + " ".join(post_move)
-    #         c += post_move
-    #         cube = ColoredCube(c)
-    #         k_sol = kociemba.solve(cube.get_faces_colors())
-    #         solution = post_move + " " + k_sol
-    #         if not has_cancellations(post_move, k_sol) and ColoredCube(solution + " " + alg).is_solved():
-    #             print(solution, "||", alg)
+def main():
+    twists = {
+        "CW": {
+            "UBL": "R U R D R' D' R D R' U' R D' R' D R D' R2",
+            "UBR": "R D R' D' R D R' U' R D' R' D R D' R' U",
+            "UFL": "U' R' D R D' R' D R U R' D' R D R' D' R",
+            "DFL": "U R U' R' D R U R' U' R U R' D' R U' R'",
+            "DFR": "D' U' R' D R U R' D' R D R' D' R U' R' D R U",
+            "DBR": "U R U' R' D' R U R' U' R U R' D R U' R'",
+            "DBL": "D' R D R' U' R D' R' D R D' R' U R D R'"
+        },
+        "CCW": {
+            "UBL": "R2 D R' D' R D R' U R D' R' D R D' R' U' R'",
+            "UBR": "U' R D R' D' R D R' U R D' R' D R D' R'",
+            "UFL": "R' D R D' R' D R U' R' D' R D R' D' R U",
+            "DFL": "R U R' D R U' R' U R U' R' D' R U R' U'",
+            "DFR": "U' R' D' R U R' D R D' R' D R U' R' D' R U D",
+            "DBR": "R U R' D' R U' R' U R U' R' D R U R' U'",
+            "DBL": "R D' R' U' R D R' D' R D R' U R D' R' D",
+        }
+    }
+    from itertools import combinations
+    a = list(combinations(twists["CW"].values(), r=2))
+    b = list(combinations(twists["CCW"].values(), r=2))
+    t = a + b
+    # algs = [a + " " + b for (a, b) in t]
     #
-    #             break
+    algs_help_num = 0
+    algs_help = []
+    algs = [
+        # LTLC UBL C
+        "U R U R2' D' R U R' D R2 U2' R'",
+        "R' D' R U R' D R2 U' R' U R U R' U' R U R' U",
+        "U' R' U2 R U R2' D' R U R' D R2 U2'",
+        "U R U R' U R2 D R' U' R D' R' U' R'",
+        "R' D R' U R D' R' U R2 U' R2' U' R2 U'",
+        "U R' D' R U R' D R2 U R' U2 R U R' U'",
+        # LTLC UBL CC
 
-    if solution != last_solution:
-        print(solution.strip())
-        # print(k_solution.strip(), end="")
-    if input() == 'quit':
-        break
+        "U' R D R' U' R D' R2' U R U' R' U' R U R' U' R",
+        "U2 R' U' R2 D R' U' R D' R2' U2' R U",
+        "R U R D R' U R D' R2' U' R U' R' U'",
+        "U' R U' R' U R U' R' U' R U R2' D' R U' R' D R",
+        "U R U' R' U2 R U' R2' D' R U' R' D R U'",
+        "R U2 R' U' R2 D R' U' R D' R2' U'",
+        # LTLC UFL C
+        "U' R2 D R' U' R D' R' U' R' U R U R' U2",
+        "U R U R' U2 L U' R U L' U R'",
+        "U2' R' U2 L U' R U L' U R' U R U'",
+        "R' U' R U D' R U' R U R U' R2' D U",
+        "U R U R' U' R U R2' D' R U2 R' D R2 U2' R' U",
+        "U' R' U' R U R' U' R2 D R' U R D' R' U2 R' U R U'",
+
+        # LTLC UFL CC
+        "U R' U' R U2 R D R' U' R D' R2' U R U' R' U R U",
+        "D' U' R2 U R' U' R' U R' U' D R' U R",
+        "U2 R U' R' U' R U R D R' U R D' R2' U",
+        "U' R' U L' U R2 U R2' U R2 U2' R' L",
+        "U2 R2 D' r U2 r' D R U2 R U'",
+        "U' L' U' L U' R U' L' U R' U2' L",
+        # LTCT UBR C
+        "R2 U R' D' R U R' D R' U' R2 U' R2' U'",
+        "D R2' U' R U R U' R D' U R U' R' U",
+        "U R' D' R U' R' D R U2 R U R' U2 R U R' U'",
+        "U' R' U2 R U R2' F' R U R U' R' F R U'",
+        "U' f R' F' R U2 R U2' R' U2 S'",
+        "U R' U R U R' U' R' D' R U' R' D R2",
+    ]
+    # algs = ["U R' U' R U2 R D R' U' R D' R2' U R U' R' U R U", "D R2' U' R U R U' R D' U R U' R' U", "U' R' U2 R U R2' F' R U R U' R' F R U'"]
+
+    last_solution = None
+    no_repeat = True
+    # TODO support wide moves
+    while True:
+        if not algs:
+            break
+        if DEBUG: print("getting random alg...")
+        alg = a = random.choice(algs)
+
+        post_move = gen_premove()
+        if DEBUG: print(post_move)
+
+        alg_with_post_move = alg + " " + post_move
+        cube = ColoredCube(alg_with_post_move)
+        if DEBUG: print("kociemba solving...")
+
+        k_sol = kociemba.solve(cube.get_faces_colors())
+
+        if DEBUG:
+            print("//", post_move, "||", k_sol)
+            print("SETUP:", post_move, alg_with_post_move, sep=" || ")
+            print("canceling")
+
+        solution = cancel(post_move, k_sol)
+        if len(solution.split()) > 25:
+            if DEBUG:
+                print(f"Long solution {len(solution.split())}:")
+                print(solution)
+            continue
+
+        if no_repeat:
+            algs.remove(alg)
+
+        if DEBUG: print("at input...")
+        if last_solution != solution:
+            print(solution.strip())
+            last_solution = solution
+            response = input("")
+            if response == 'quit':
+                quit()
+            elif response.startswith('a'):
+                print("Alg:", a, '\n')
+                algs_help_num += 1
+                algs_help.append(a)
+    print(algs_help_num, algs_help)
+
+
+if __name__ == "__main__":
+    main()

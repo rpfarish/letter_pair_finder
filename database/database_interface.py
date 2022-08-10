@@ -2,8 +2,8 @@
 
 import pygame
 
-from button import Button
-from database import get_all, insert_pair
+from database.button import Button
+from database.database import get_all, insert_pair
 
 pygame.font.init()
 WIDTH, HEIGHT = 400, 200

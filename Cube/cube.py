@@ -1,59 +1,123 @@
 import random
 from collections import deque
 
-from Cube.letterscheme import *
-from database import get_all
+import kociemba
 
-data_edges = get_all()
+import get_scrambles
+from comms import COMMS
+from solution import Solution
+
+DEBUG = True
 
 
+# TODO does not reorient the cube after scrambling
 class Cube:
-    def __init__(self, s="", can_parity_swap=True):
-        self.scramble = s.rstrip('\n').strip().split(' ')
+    def __init__(self, s="", can_parity_swap=False, auto_scramble=True, ls=None):
+        self.scramble = s.rstrip('\n').strip().split()
         self.faces = 'ULFRBD'
 
-        self.default_edge_buffer = EDGE_BUFFER
-        self.default_corner_buffer = CORNER_BUFFER
+        self.slices = 'MSE'
+        self.kociemba_order = "URFDLB"
+        self.slices = 'MSE'
+
+        self.directions = ["", "'", "2"]
+        self.opp_faces = {'U': 'D', 'D': 'U',
+                          'F': 'B', 'B': 'F',
+                          'L': 'R', 'R': 'L',
+                          }
+
+        self.default_edge_buffer = 'UF'
+        self.default_corner_buffer = 'UFR'
         self.edge_memo_buffers = set()
         self.corner_memo_buffers = set()
 
-        self.corner_buffer_order = [UBR, UBL, UFL, RDF, RDB, LDF, LDB]
-        self.edge_buffer_order = [UB, UR, UL, DF, FR, FL, DR, DL]
+        self.corner_buffer_order = ['UBR', 'UBL', 'UFL', 'RDF', 'RDB', 'LDF', 'LDB']
+        self.edge_buffer_order = ['UB', 'UR', 'UL', 'DF,' 'FR', 'FL', 'DR', 'DL']
 
         double_turns = [move for move in self.scramble if '2' in move]
         self.has_parity = (len(self.scramble) - len(double_turns)) % 2 == 1
 
-        self.U_corners = deque([UBL, UBR, UFR, UFL])
-        self.L_corners = deque([LUB, LUF, LDF, LDB])
-        self.F_corners = deque([FUL, FUR, FDR, FDL])
-        self.R_corners = deque([RUF, RUB, RDB, RDF])
-        self.B_corners = deque([BUR, BUL, BDL, BDR])
-        self.D_corners = deque([DFL, DFR, DBR, DBL])
+        self.U_corners = deque(['UBL', 'UBR', 'UFR', 'UFL'])
+        self.L_corners = deque(['LUB', 'LUF', 'LDF', 'LDB'])
+        self.F_corners = deque(['FUL', 'FUR', 'FDR', 'FDL'])
+        self.R_corners = deque(['RUF', 'RUB', 'RDB', 'RDF'])
+        self.B_corners = deque(['BUR', 'BUL', 'BDL', 'BDR'])
+        self.D_corners = deque(['DFL', 'DFR', 'DBR', 'DBL'])
 
-        self.U_edges = deque([UB, UR, UF, UL])
-        self.L_edges = deque([LU, LF, LD, LB])
-        self.F_edges = deque([FU, FR, FD, FL])
-        self.R_edges = deque([RU, RB, RD, RF])
-        self.B_edges = deque([BU, BL, BD, BR])
-        self.D_edges = deque([DF, DR, DB, DL])
+        self.U_edges = deque(['UB', 'UR', 'UF', 'UL'])
+        self.L_edges = deque(['LU', 'LF', 'LD', 'LB'])
+        self.F_edges = deque(['FU', 'FR', 'FD', 'FL'])
+        self.R_edges = deque(['RU', 'RB', 'RD', 'RF'])
+        self.B_edges = deque(['BU', 'BL', 'BD', 'BR'])
+        self.D_edges = deque(['DF', 'DR', 'DB', 'DL'])
 
         self.default_edges = self.U_edges + self.L_edges + self.F_edges + self.R_edges + self.B_edges + self.D_edges
         self.default_corners = self.U_corners + self.L_corners + self.F_corners + self.R_corners + self.B_corners + self.D_corners
+
+        # todo if len of move is > 3 throw error'
         self.adj_edges = {
-            UB: BU, UR: RU, UL: LU, FL: LF, DL: LD,
-            BL: LB, FR: RF, BR: RB, DR: RD, DF: FD,
-            DB: BD, BU: UB, RU: UR, LU: UL, LF: FL,
-            LD: DL, LB: BL, RF: FR, RB: BR, RD: DR,
-            FD: DF, BD: DB, UF: FU, FU: UF
+            self.U_edges[0]: self.B_edges[0],
+            self.U_edges[1]: self.R_edges[0],
+            self.U_edges[2]: self.F_edges[0],
+            self.U_edges[3]: self.L_edges[0],
+
+            self.L_edges[0]: self.U_edges[3],
+            self.L_edges[1]: self.F_edges[3],
+            self.L_edges[2]: self.D_edges[3],
+            self.L_edges[3]: self.B_edges[1],
+
+            self.F_edges[0]: self.U_edges[2],
+            self.F_edges[1]: self.R_edges[3],
+            self.F_edges[2]: self.D_edges[0],
+            self.F_edges[3]: self.L_edges[1],
+
+            self.R_edges[0]: self.U_edges[1],
+            self.R_edges[1]: self.B_edges[3],
+            self.R_edges[2]: self.D_edges[1],
+            self.R_edges[3]: self.F_edges[1],
+
+            self.B_edges[0]: self.U_edges[0],
+            self.B_edges[1]: self.L_edges[3],
+            self.B_edges[2]: self.D_edges[2],
+            self.B_edges[3]: self.R_edges[1],
+
+            self.D_edges[0]: self.F_edges[2],
+            self.D_edges[1]: self.R_edges[2],
+            self.D_edges[2]: self.B_edges[2],
+            self.D_edges[3]: self.L_edges[2],
         }
 
         self.adj_corners = {
-            UBL: BUL + LUB, UBR: RUB + BUR, UFR: FUR + RUF, UFL: LUF + FUL,
-            LUB: UBL + BUL, LUF: FUL + UFL, LDF: DFL + FDL, LDB: BDL + DBL,
-            FUL: UFL + LUF, FUR: RUF + UFR, FDR: DFR + RDF, FDL: LDF + DFL,
-            RUF: UFR + FUR, RUB: BUR + UBR, RDB: DBR + BDR, RDF: FDR + DFR,
-            BUR: UBR + RUB, BUL: LUB + UBL, BDL: DBL + LDB, BDR: RDB + DBR,
-            DFL: FDL + LDF, DFR: RDF + FDR, DBR: BDR + RDB, DBL: LDB + BDL
+            self.U_corners[0]: [self.B_corners[1], self.L_corners[0]],
+            self.U_corners[1]: [self.R_corners[1], self.B_corners[0]],
+            self.U_corners[2]: [self.F_corners[1], self.R_corners[0]],
+            self.U_corners[3]: [self.L_corners[1], self.F_corners[0]],
+
+            self.L_corners[0]: [self.U_corners[0], self.B_corners[1]],
+            self.L_corners[1]: [self.F_corners[0], self.U_corners[3]],
+            self.L_corners[2]: [self.D_corners[0], self.F_corners[3]],
+            self.L_corners[3]: [self.B_corners[2], self.D_corners[3]],
+
+            self.F_corners[0]: [self.U_corners[3], self.L_corners[1]],
+            self.F_corners[1]: [self.R_corners[0], self.U_corners[2]],
+            self.F_corners[2]: [self.D_corners[1], self.R_corners[3]],
+            self.F_corners[3]: [self.L_corners[2], self.D_corners[0]],
+
+            self.R_corners[0]: [self.U_corners[2], self.F_corners[1]],
+            self.R_corners[1]: [self.B_corners[0], self.U_corners[1]],
+            self.R_corners[2]: [self.D_corners[2], self.B_corners[3]],
+            self.R_corners[3]: [self.F_corners[2], self.D_corners[1]],
+
+            self.B_corners[0]: [self.U_corners[1], self.R_corners[1]],
+            self.B_corners[1]: [self.L_corners[0], self.U_corners[0]],
+            self.B_corners[2]: [self.D_corners[3], self.L_corners[3]],
+            self.B_corners[3]: [self.R_corners[2], self.D_corners[2]],
+
+            self.D_corners[0]: [self.F_corners[3], self.L_corners[2]],
+            self.D_corners[1]: [self.R_corners[3], self.F_corners[2]],
+            self.D_corners[2]: [self.B_corners[3], self.R_corners[2]],
+            self.D_corners[3]: [self.L_corners[3], self.B_corners[2]],
+
         }
 
         self.u_adj_edges = [self.B_edges, self.R_edges, self.F_edges, self.L_edges]
@@ -84,12 +148,49 @@ class Cube:
         self.b_adj_edges_index = [0, 3, 2, 1]
         self.d_adj_edges_index = [2, 2, 2, 2]
 
+        # Starting from UF following L
+        self.m_edges_index = [2, 2, 2, 0]
+        self.m_adj_edges_index = [0, 0, 2, 0]
+        # Starting from UR following F
+        self.s_edges_index = [1, 2, 3, 0]
+        self.s_adj_edges_index = [0, 1, 2, 3]
+        # Starting from FR following D
+        self.e_edges_index = [1, 1, 1, 1]
+        self.e_adj_edges_index = [3, 3, 3, 3]
+
+        self.wide_moves = {
+            'u': ("E", -1),
+            'r': ('M', -1),
+            'f': ('S', 1),
+            'l': ('M', 1),
+            'd': ('E', 1),
+            'b': ('S', -1),
+        }
+        self.rotations_map = {
+            "'": -1,
+            "2": 2,
+            "2'": 2,
+            "": 1,
+            "3": -1,
+            "3'": 1,
+            -1: "'",
+            1: "",
+            2: "2",
+            -2: "2",
+        }
+
         # UF-UR swap
         if self.has_parity and can_parity_swap:
             self.U_edges[1], self.U_edges[2] = self.U_edges[2], self.U_edges[1]
             self.F_edges[0], self.R_edges[0] = self.R_edges[0], self.F_edges[0]
 
-        self.scramble_cube()
+        if auto_scramble:
+            self.scramble_cube()
+
+    def parity_swap(self):
+        if self.has_parity:
+            self.U_edges[1], self.U_edges[2] = self.U_edges[2], self.U_edges[1]
+            self.F_edges[0], self.R_edges[0] = self.R_edges[0], self.F_edges[0]
 
     def __eq__(self, other):
         for (edges, corners), (edges2, corners2) in zip(self.cube_faces().values(), other.cube_faces().values()):
@@ -104,15 +205,8 @@ class Cube:
     def do_move(self, move: str):
         if not move:
             return
-        rotations_map = {
-            "'": -1,
-            "2": 2,
-            "2'": 2,
-            "": 1,
-            "3": -1,
-            "3'": 1,
-        }
-        rotation = rotations_map.get(move[1:], 0)
+
+        rotation = self.rotations_map[move[1:]]
 
         moves_map = {
             'U': (self.U_edges, self.u_adj_edges, self.u_adj_edges_index,
@@ -132,10 +226,29 @@ class Cube:
 
             'D': (self.D_edges, self.d_adj_edges, self.d_adj_edges_index,
                   self.D_corners, self.d_adj_corners, self.d_adj_corners_index),
+
+            'M': ([self.U_edges, self.F_edges, self.D_edges, self.B_edges],
+                  [self.F_edges, self.D_edges, self.B_edges, self.U_edges],
+                  self.m_edges_index, self.m_adj_edges_index),
+
+            'S': ([self.U_edges, self.R_edges, self.D_edges, self.L_edges],
+                  [self.R_edges, self.D_edges, self.L_edges, self.U_edges],
+                  self.s_edges_index, self.s_adj_edges_index),
+
+            'E': ([self.F_edges, self.R_edges, self.B_edges, self.L_edges],
+                  [self.R_edges, self.B_edges, self.L_edges, self.F_edges],
+                  self.e_edges_index, self.e_adj_edges_index),
         }
 
-        side = moves_map.get(move[:1])
-        self._rotate_layer(rotation, *side)
+        face_turn = move[:1]
+        if face_turn in self.faces:
+            side = moves_map.get(face_turn)
+            self._rotate_layer(rotation, *side)
+        elif face_turn in self.slices:
+            side = moves_map.get(face_turn)
+            self._rotate_slice(rotation, *side)
+        elif face_turn.islower():
+            self._rotate_wide(move)
 
     @staticmethod
     def _rotate_layer(rotation, edges, adj_edges, adj_edges_index, corners, adj_corners, adj_corners_index):
@@ -155,6 +268,27 @@ class Cube:
         for adj_side_obj, (i, j), (a, b) in zip(adj_corners, adj_corners_index, side):
             adj_side_obj[i] = a
             adj_side_obj[j] = b
+
+    @staticmethod
+    def _rotate_slice(rotation, edges, adj_edges, edges_index, adj_edges_index):
+        # rotate UF L following M slice
+        side = deque([edge[i] for edge, i in zip(edges, edges_index)])
+        side.rotate(rotation)
+        for s, edge, edges_index in zip(side, edges, edges_index):
+            edge[edges_index] = s
+
+        side = deque([edge[i] for edge, i in zip(adj_edges, adj_edges_index)])
+        side.rotate(rotation)
+        for s, edge, edges_index in zip(side, adj_edges, adj_edges_index):
+            edge[edges_index] = s
+
+    def _rotate_wide(self, face_turn):
+        self.do_move(face_turn.upper())
+        slice_, direction = self.wide_moves[face_turn[:1]]
+        rotation = self.rotations_map[face_turn[1:]]
+        rotation *= direction
+        slice_turn = slice_[:1] + self.rotations_map[rotation]
+        self.do_move(slice_turn)
 
     @property
     def solved_corners(self):
@@ -189,16 +323,8 @@ class Cube:
         return self.U_edges + self.L_edges + self.F_edges + self.R_edges + self.B_edges + self.D_edges
 
     @property
-    def all_edges_list(self):
-        return [self.U_edges, self.L_edges, self.F_edges, self.R_edges, self.B_edges, self.D_edges]
-
-    @property
     def all_corners(self):
         return self.U_corners + self.L_corners + self.F_corners + self.R_corners + self.B_corners + self.D_corners
-
-    @property
-    def all_corners_list(self):
-        return [self.U_corners, self.L_corners, self.F_corners, self.R_corners, self.B_corners, self.D_corners]
 
     @property
     def edge_swaps(self):
@@ -221,33 +347,30 @@ class Cube:
         }
 
     def cube_faces(self):
-        return {face: pieces for face, *pieces in zip(self.faces, self.all_edges_list, self.all_corners_list)}
+        all_edges = [self.U_edges, self.L_edges, self.F_edges, self.R_edges, self.B_edges, self.D_edges]
+        all_corners = [self.U_corners, self.L_corners, self.F_corners, self.R_corners, self.B_corners, self.D_corners]
+        return {face: pieces for face, *pieces in zip(self.faces, all_edges, all_corners)}
 
     def display_cube(self):
         for name, (e, c) in self.cube_faces().items():
             print('-------', name, '-------')
-            print(f'      {c[0]} {e[0]} {c[1]}     ')
-            print(f'      {e[3]}   {e[1]}          ')
-            print(f'      {c[3]} {e[2]} {c[2]}   \n')
+            print(f'      {c[0].name} {e[0].name} {c[1].name}     ')
+            print(f'      {e[3].name}   {e[1].name}          ')
+            print(f'      {c[3].name} {e[2].name} {c[2].name}   \n')
 
-    def scramble_cube(self):
-        for move in self.scramble:
+    def scramble_cube(self, scramble=None):
+        if scramble is None:
+            scramble = self.scramble
+        else:
+            scramble = scramble.rstrip('\n').strip().split()
+
+        for move in scramble:
             self.do_move(move)
 
-    def edge_buffer_is_solved(self):
-        return (self.U_edges[2] == self.default_edge_buffer
-                and self.F_edges[0] == self.adj_edges[self.default_edge_buffer])
-
-    def edge_buffer_is_flipped(self):
-        return (self.U_edges[2] == self.adj_edges[self.default_edge_buffer]
-                and self.F_edges[0] == self.default_edge_buffer)
-
     def is_solved(self):
-        for key, value in self.edge_swaps.items():
-            if key != value:
-                return False
-        else:
+        if self == Cube():
             return True
+        return False
 
     def get_new_corner_buffer(self, avail_moves):
         for new_buffer in self.corner_buffer_order:
@@ -258,6 +381,7 @@ class Cube:
 
     def memo_corners(self):
         curr = buffer = self.default_corner_buffer
+        self.corner_memo_buffers.add(buffer)
         avail_moves = self.corner_swaps
         curr = avail_moves[curr]
         memo = []
@@ -286,7 +410,7 @@ class Cube:
             # Append the new memo onto the current memo
             memo += new_memo
 
-            # Return the the memo when avail is empty
+            # Return the memo when avail is empty
             if not avail_moves:
                 return [m for m in memo if m not in self.adj_corners[self.default_corner_buffer]
                         and m != self.default_corner_buffer]
@@ -297,9 +421,6 @@ class Cube:
 
     def get_new_edge_buffer(self, avail_moves):
         # # todo also check the other side of the buffer piece at first
-        # pairs = {(d := f'{new}{avail_moves[new]}'): data_edges[d] for new in self.edge_buffer_order if new in avail_moves}
-        # print(pairs, 'pairs')
-        # return min(pairs)
         for new_buffer in self.edge_buffer_order:
             if new_buffer in avail_moves:
                 return new_buffer
@@ -311,6 +432,7 @@ class Cube:
         avail_moves = self.edge_swaps
         def_buff = self.default_edge_buffer
         def_buff_adj = self.adj_edges[self.default_edge_buffer]
+        self.edge_memo_buffers.add(buffer)
         curr = avail_moves[buffer]
         memo = []
         while avail_moves:
@@ -337,7 +459,7 @@ class Cube:
             # Append the new memo onto the current memo
             memo += new_memo
 
-            # Return the the memo when avail is empty
+            # Return the memo when avail is empty
             if not avail_moves:
                 return [letter for letter in memo if letter != def_buff and letter != def_buff_adj]
 
@@ -349,7 +471,201 @@ class Cube:
     def format_edge_memo(memo):
         return ' '.join([f'{memo[i]}{memo[i + 1]}' for i in range(0, len(memo) - 1, 2)])
 
+    def invert_solution(self, s=None) -> str:
+        if type(s) is str:
+            s = s.rstrip('\n').strip().split(' ')[:]
+        elif s is None:
+            s = self.scramble
+        inverse = []
+        for move in reversed(s):
+            if move.endswith("'"):
+                inverse.append(move.strip("'"))
+            elif move.endswith("2"):
+                inverse.append(move)
+            else:
+                inverse.append(move + "'")
+        return " ".join(inverse)
+
     def format_corner_memo(self, memo):
         parity_target = memo.pop() if self.has_parity else ''
-        memo = self.format_edge_memo(memo) + f" {parity_target}"
+        memo = self.format_edge_memo(memo) + " " + parity_target
         return memo.strip()
+
+    def get_solution(self):
+        return kociemba.solve(self.get_faces_colors())
+
+    def get_inverse_state_scramble(self, repeat_scramble=True):
+        if repeat_scramble:
+            return kociemba.solve(self.get_faces_colors())
+        # GENERATE POST-MOVE
+        # SOLVE STATE + POST-MOVE
+        # UNDO POST-MOVE AND CANCEL SOLUTION
+
+    def gen_premove(self, pre_move_len=3):
+
+        turns = []
+        scram_len = random.randint(1, pre_move_len)
+
+        # first turn
+        turn = random.choice(self.faces)
+        direction = random.choice(self.directions)
+        scramble = [turn + direction]
+        turns.append(turn)
+
+        for turn_num in range(1, scram_len):
+            direction = random.choice(self.directions)
+            last_turn = turns[turn_num - 1]
+            while turn == last_turn or (
+                    self.opp_faces[turn] == last_turn and turns[turn_num - 2] == self.opp_faces[last_turn]):
+                turn = random.choice(self.faces)
+            scramble.append(turn + direction)
+            turns.append(turn)
+
+        return " ".join(scramble)
+
+    def scramble_edges_from_memo(self, memo, edge_buffer=None):
+        edge_buffer = self.default_edge_buffer if edge_buffer is None else edge_buffer
+        iter_memo = iter(memo)
+
+        for target in iter_memo:
+            a = str(target)
+            b = str(next(iter_memo))
+            buffer = COMMS[str(edge_buffer)]
+            comm = buffer[a][b]
+            self.scramble_cube(comm)
+
+        sol = kociemba.solve(self.get_faces_colors())
+        return sol
+
+    def remove_irrelevant_edge_buffers(self, edges, edge_buffer):
+        edges.pop(self.adj_edges[self.U_edges[2]])
+        edges.pop(self.U_edges[2])
+
+        edge_buffer_order = self.edge_buffer_order.copy()
+        for buff in edge_buffer_order:
+            edges.pop(buff)
+            edges.pop(self.adj_edges[buff])
+
+            if buff == edge_buffer:
+                break
+        return edges
+
+    def drill_edge_sticker(self, sticker_to_drill):
+        # todo support starting from any buffer
+        # support default certain alternate pseudo edge swaps depending on last corner target
+
+        all_edges = self.default_edges.copy()
+
+        buffer = "UF"
+        buffer_adj = self.adj_edges[buffer]
+        all_edges.remove(buffer)
+        all_edges.remove(buffer_adj)
+
+        adj = self.adj_edges[sticker_to_drill]
+        all_edges.remove(sticker_to_drill)
+        all_edges.remove(adj)
+        algs_to_drill = {sticker_to_drill + i for i in all_edges}
+        number = 0
+        print("This program generates scrambles that contain certain letter pairs")
+        frequency = int(input("Enter freq (recommended less than 3): "))
+        no_cycle_break_edge_memo = set()
+        no_repeat = True
+        # I don't recommend going above 2 else it will take forever
+        while len(algs_to_drill) > frequency:
+            scramble = get_scrambles.gen_premove(28, min_len=25)
+            cube = Cube(scramble, can_parity_swap=True)
+            edge_memo = cube.format_edge_memo(cube.memo_edges()).split(' ')
+            last_added_pair = ''
+            no_cycle_break_edge_memo = set(edge_memo)
+
+            # todo check if scramble has odd num of flips and last pair is a target alg
+            #  i.e prevent breaking into flips from causing you to miss the target alg
+            #  or worse do the alg and then a flip alg
+            # print(corner_buffers)
+            no_cycle_break_edge_memo.clear()
+            edge_buffers = cube.edge_memo_buffers
+            # print(edge_buffers)
+            for pair in edge_memo:
+                # print(edge_memo)
+                # print(pair)
+
+                a = pair[:2]
+                b = pair[2:]
+                # print(a, b)
+                if a in edge_buffers or b in edge_buffers:
+                    break
+                last_added_pair = pair
+                no_cycle_break_edge_memo.add(pair)
+
+            if algs_to_drill.intersection(last_added_pair) and (len(cube.flipped_edges) // 2) % 2 == 1:
+                continue
+
+            # print("corner memo before cycle breaks", no_cycle_break_edge_memo)
+            algs_in_scramble = algs_to_drill.intersection(no_cycle_break_edge_memo)
+
+            if len(algs_in_scramble) >= frequency:
+                # print(algs_to_drill.intersection(no_cycle_break_edge_memo))
+                print("Scramble:", scramble)
+                # todo make it so if you're no_repeat then allow to repeat the letter pairs
+                response = input('Enter "r" to repeat letter pairs: ')
+
+                if response == 'm':
+                    Solution(scramble).display()
+                    response = input('Enter "r" to repeat letter pair(s): ')
+
+                if response == 'r':
+                    pass
+                elif no_repeat:
+                    algs_to_drill = algs_to_drill.difference(algs_in_scramble)
+
+                print()
+
+    def drill_edge_buffer(self, edge_buffer: str):
+        # todo add edge flips
+        exclude_from_memo = set()
+        # todo store all len of all buffers
+        num = 1
+        while len(exclude_from_memo) < 360:
+            print(f'Num: {num}/72', len(exclude_from_memo))
+            memo = self.generate_random_memo(edge_buffer, exclude_from_memo)
+            for i in memo:
+                exclude_from_memo.add(i)
+            num += 1
+            print(self.memo_edges())
+            input()
+
+    def generate_random_memo(self, edge_buffer=None, exclude_from_memo=None):
+        # TODO this is for drilling all floating buffers and potentially not repeating a letter pair
+        exclude_from_memo = set() if exclude_from_memo is None else exclude_from_memo
+        edge_buffer = self.default_edge_buffer if edge_buffer is None else edge_buffer
+        memo = []
+        edges = self.adj_edges.copy()
+
+        edges = self.remove_irrelevant_edge_buffers(edges, edge_buffer)
+
+        while edges:
+            print(edges)
+
+            edge, edge2 = random.sample(list(edges), k=2)
+
+        if len(memo) % 2 == 1:
+            memo.pop()
+
+        self.scramble_edges_from_memo(memo, str(edge_buffer))
+        return self.format_edge_memo(memo)
+
+    def get_faces_colors(self):
+        cube_faces = self.cube_faces()
+        cube_string = ""
+        for face_name in self.kociemba_order:
+            e, c = cube_faces.get(face_name)
+            face = c[0][0] + e[0][0] + c[1][0]
+            face += e[3][0] + face_name + e[1][0]
+            face += c[3][0] + e[2][0] + c[2][0]
+            cube_string += face
+        return cube_string
+
+
+if __name__ == "__main__":
+    c = Cube("U")
+    c.drill_edge_sticker("UL")

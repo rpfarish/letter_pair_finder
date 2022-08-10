@@ -4,9 +4,10 @@ from Cube.cube import Cube
 class Solution:
 
     def __init__(self, scramble):
-        self.cube = Cube(scramble)
-        self.scramble = scramble,
+        self.cube = Cube(scramble, auto_scramble=False, can_parity_swap=True)
+        self.scramble = scramble
         self.parity = self.cube.has_parity
+        self.cube.scramble_cube(self.scramble)
 
         self.edges = self.cube.format_edge_memo(self.cube.memo_edges()).split(' ')
         self.flipped_edges = list(self.cube.flipped_edges)
@@ -46,7 +47,8 @@ class Solution:
             buffer_hit_parity = 0
 
             for pair in memo:
-                a, b = pair
+                a = pair[:2]
+                b = pair[2:]
 
                 # FF
                 if buffer == a and not is_buffer_hit:
@@ -67,7 +69,7 @@ class Solution:
 
                 # FL hit opp side edge
                 if buffer == self.cube.adj_edges[b] and is_buffer_hit and buffer_hit_parity == 1:
-                    # print("can float from buffer but it's flipped", buffer, pair)
+                    # print("can float from buffer, but it's flipped", buffer, pair)
                     pass
 
             # print("edge_buffer_count", count)
@@ -115,3 +117,21 @@ class Solution:
         solution['number_of_corner_twists'] = len(solution['twisted_corners']) // 3
 
         return solution
+
+    def display(self):
+        solution = self.get_solution()
+        print("Can float edges:", self.can_float_edges)
+        print("Scramble", self.scramble)
+        print(f"Parity:", solution['parity'])
+        print(f"Edges:", solution['edges'])
+        print(f"Flipped Edges:", solution['flipped_edges'])
+        print("Edge Buffers:", solution['edge_buffers'])
+        print("Corners:", solution['corners'])
+        print("Twisted Corners:", self.cube.twisted_corners)
+        print("Alg count:", solution['number_of_algs'])
+        corner_memo = solution['corners']
+        print(corner_memo)
+        # when cube is memoed, the state of the memo should be saved when the buffer is first hit
+        no_cycle_break_corner_memo = set()
+        corner_buffers = solution['corner_buffers']
+        print(corner_buffers)

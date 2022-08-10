@@ -3,6 +3,7 @@ from webbrowser import open_new_tab
 from Cube.cube import Cube
 from get_scrambles import get_scramble
 
+"""For practicing edges only solves but with full scrambles"""
 
 def url_encode(s):
     """:s scramble"""
