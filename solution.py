@@ -3,8 +3,8 @@ from Cube.cube import Cube
 
 class Solution:
 
-    def __init__(self, scramble):
-        self.cube = Cube(scramble, auto_scramble=False, can_parity_swap=True)
+    def __init__(self, scramble, letter_scheme=None, buffers=None):
+        self.cube = Cube(scramble, auto_scramble=False, can_parity_swap=True, ls=letter_scheme, buffers=buffers)
         self.scramble = scramble
         self.parity = self.cube.has_parity
         self.cube.scramble_cube(self.scramble)
@@ -47,8 +47,9 @@ class Solution:
             buffer_hit_parity = 0
 
             for pair in memo:
-                a = pair[:2]
-                b = pair[2:]
+                pair_len_half = len(pair) // 2
+                a = pair[:pair_len_half]
+                b = pair[pair_len_half:]
 
                 # FF
                 if buffer == a and not is_buffer_hit:

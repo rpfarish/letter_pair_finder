@@ -5,17 +5,16 @@ import kociemba
 
 import get_scrambles
 from comms import COMMS
-from solution import Solution
 
 DEBUG = True
 
 
 # TODO does not reorient the cube after scrambling
 class Cube:
-    def __init__(self, s="", can_parity_swap=False, auto_scramble=True, ls=None):
+    def __init__(self, s="", can_parity_swap=False, auto_scramble=True, ls=None, buffers=None):
         self.scramble = s.rstrip('\n').strip().split()
         self.faces = 'ULFRBD'
-
+        self.ls = ls
         self.slices = 'MSE'
         self.kociemba_order = "URFDLB"
         self.slices = 'MSE'
@@ -26,30 +25,72 @@ class Cube:
                           'L': 'R', 'R': 'L',
                           }
 
-        self.default_edge_buffer = 'UF'
-        self.default_corner_buffer = 'UFR'
+        # letter_scheme
+        if ls is None:
+            UB, UR, UF, UL = 'UB', 'UR', 'UF', 'UL'
+            LU, LF, LD, LB = 'LU', 'LF', 'LD', 'LB'
+            FU, FR, FD, FL = 'FU', 'FR', 'FD', 'FL'
+            RU, RB, RD, RF = 'RU', 'RB', 'RD', 'RF'
+            BU, BL, BD, BR = 'BU', 'BL', 'BD', 'BR'
+            DF, DR, DB, DL = 'DF', 'DR', 'DB', 'DL'
+
+            UBL, UBR, UFR, UFL = 'UBL', 'UBR', 'UFR', 'UFL'
+            LUB, LUF, LDF, LDB = 'LUB', 'LUF', 'LDF', 'LDB'
+            FUL, FUR, FDR, FDL = 'FUL', 'FUR', 'FDR', 'FDL'
+            RUF, RUB, RDB, RDF = 'RUF', 'RUB', 'RDB', 'RDF'
+            BUR, BUL, BDL, BDR = 'BUR', 'BUL', 'BDL', 'BDR'
+            DFL, DFR, DBR, DBL = 'DFL', 'DFR', 'DBR', 'DBL'
+            if buffers is not None:
+                self.default_edge_buffer = buffers['edge_buffer']
+                self.default_corner_buffer = buffers['corner_buffer']
+            else:
+                self.default_edge_buffer = 'UF'
+                self.default_corner_buffer = 'UFR'
+
+        else:
+            UB, UR, UF, UL = ls['UB'], ls['UR'], ls['UF'], ls['UL']
+            LU, LF, LD, LB = ls['LU'], ls['LF'], ls['LD'], ls['LB']
+            FU, FR, FD, FL = ls['FU'], ls['FR'], ls['FD'], ls['FL']
+            RU, RB, RD, RF = ls['RU'], ls['RB'], ls['RD'], ls['RF']
+            BU, BL, BD, BR = ls['BU'], ls['BL'], ls['BD'], ls['BR']
+            DF, DR, DB, DL = ls['DF'], ls['DR'], ls['DB'], ls['DL']
+
+            UBL, UBR, UFR, UFL = ls['UBL'], ls['UBR'], ls['UFR'], ls['UFL']
+            LUB, LUF, LDF, LDB = ls['LUB'], ls['LUF'], ls['LDF'], ls['LDB']
+            FUL, FUR, FDR, FDL = ls['FUL'], ls['FUR'], ls['FDR'], ls['FDL']
+            RUF, RUB, RDB, RDF = ls['RUF'], ls['RUB'], ls['RDB'], ls['RDF']
+            BUR, BUL, BDL, BDR = ls['BUR'], ls['BUL'], ls['BDL'], ls['BDR']
+            DFL, DFR, DBR, DBL = ls['DFL'], ls['DFR'], ls['DBR'], ls['DBL']
+
+            if buffers is not None:
+                self.default_edge_buffer = ls[buffers['edge_buffer']]
+                self.default_corner_buffer = ls[buffers['corner_buffer']]
+            else:
+                self.default_edge_buffer = ls['UF']
+                self.default_corner_buffer = ls['UFR']
+
         self.edge_memo_buffers = set()
         self.corner_memo_buffers = set()
 
-        self.corner_buffer_order = ['UBR', 'UBL', 'UFL', 'RDF', 'RDB', 'LDF', 'LDB']
-        self.edge_buffer_order = ['UB', 'UR', 'UL', 'DF,' 'FR', 'FL', 'DR', 'DL']
+        self.corner_buffer_order = [UBR, UBL, UFL, RDF, RDB, LDF, LDB]
+        self.edge_buffer_order = [UB, UR, UL, DF, FR, FL, DR, DL]
 
         double_turns = [move for move in self.scramble if '2' in move]
         self.has_parity = (len(self.scramble) - len(double_turns)) % 2 == 1
 
-        self.U_corners = deque(['UBL', 'UBR', 'UFR', 'UFL'])
-        self.L_corners = deque(['LUB', 'LUF', 'LDF', 'LDB'])
-        self.F_corners = deque(['FUL', 'FUR', 'FDR', 'FDL'])
-        self.R_corners = deque(['RUF', 'RUB', 'RDB', 'RDF'])
-        self.B_corners = deque(['BUR', 'BUL', 'BDL', 'BDR'])
-        self.D_corners = deque(['DFL', 'DFR', 'DBR', 'DBL'])
+        self.U_edges = deque([UB, UR, UF, UL])
+        self.L_edges = deque([LU, LF, LD, LB])
+        self.F_edges = deque([FU, FR, FD, FL])
+        self.R_edges = deque([RU, RB, RD, RF])
+        self.B_edges = deque([BU, BL, BD, BR])
+        self.D_edges = deque([DF, DR, DB, DL])
 
-        self.U_edges = deque(['UB', 'UR', 'UF', 'UL'])
-        self.L_edges = deque(['LU', 'LF', 'LD', 'LB'])
-        self.F_edges = deque(['FU', 'FR', 'FD', 'FL'])
-        self.R_edges = deque(['RU', 'RB', 'RD', 'RF'])
-        self.B_edges = deque(['BU', 'BL', 'BD', 'BR'])
-        self.D_edges = deque(['DF', 'DR', 'DB', 'DL'])
+        self.U_corners = deque([UBL, UBR, UFR, UFL])
+        self.L_corners = deque([LUB, LUF, LDF, LDB])
+        self.F_corners = deque([FUL, FUR, FDR, FDL])
+        self.R_corners = deque([RUF, RUB, RDB, RDF])
+        self.B_corners = deque([BUR, BUL, BDL, BDR])
+        self.D_corners = deque([DFL, DFR, DBR, DBL])
 
         self.default_edges = self.U_edges + self.L_edges + self.F_edges + self.R_edges + self.B_edges + self.D_edges
         self.default_corners = self.U_corners + self.L_corners + self.F_corners + self.R_corners + self.B_corners + self.D_corners
@@ -134,19 +175,19 @@ class Cube:
         self.b_adj_corners = [self.U_corners, self.L_corners, self.D_corners, self.R_corners]
         self.d_adj_corners = [self.F_corners, self.R_corners, self.B_corners, self.L_corners]
 
-        self.u_adj_corners_index = [(1, 0), (1, 0), (1, 0), (1, 0)]
-        self.r_adj_corners_index = [(2, 1), (0, 3), (2, 1), (2, 1)]
-        self.l_adj_corners_index = [(0, 3), (0, 3), (0, 3), (2, 1)]
-        self.f_adj_corners_index = [(3, 2), (0, 3), (1, 0), (2, 1)]
-        self.b_adj_corners_index = [(1, 0), (0, 3), (3, 2), (2, 1)]
-        self.d_adj_corners_index = [(3, 2), (3, 2), (3, 2), (3, 2)]
-
         self.u_adj_edges_index = [0, 0, 0, 0]
         self.r_adj_edges_index = [1, 3, 1, 1]
         self.l_adj_edges_index = [3, 3, 3, 1]
         self.f_adj_edges_index = [2, 3, 0, 1]
         self.b_adj_edges_index = [0, 3, 2, 1]
         self.d_adj_edges_index = [2, 2, 2, 2]
+
+        self.u_adj_corners_index = [(1, 0), (1, 0), (1, 0), (1, 0)]
+        self.r_adj_corners_index = [(2, 1), (0, 3), (2, 1), (2, 1)]
+        self.l_adj_corners_index = [(0, 3), (0, 3), (0, 3), (2, 1)]
+        self.f_adj_corners_index = [(3, 2), (0, 3), (1, 0), (2, 1)]
+        self.b_adj_corners_index = [(1, 0), (0, 3), (3, 2), (2, 1)]
+        self.d_adj_corners_index = [(3, 2), (3, 2), (3, 2), (3, 2)]
 
         # Starting from UF following L
         self.m_edges_index = [2, 2, 2, 0]
@@ -193,6 +234,8 @@ class Cube:
             self.F_edges[0], self.R_edges[0] = self.R_edges[0], self.F_edges[0]
 
     def __eq__(self, other):
+        if self.__class__ is not other.__class:
+            return NotImplemented
         for (edges, corners), (edges2, corners2) in zip(self.cube_faces().values(), other.cube_faces().values()):
             if edges != edges2 or corners != corners2:
                 return False
@@ -200,11 +243,18 @@ class Cube:
             return True
 
     def __ne__(self, other):
-        return not self == other
+        result = self.__eq__(other)
+        if result is NotImplemented:
+            return NotImplemented
+        else:
+            return not result
 
     def do_move(self, move: str):
         if not move:
             return
+
+        elif len(move) > 3:
+            raise ValueError("Invalid move length")
 
         rotation = self.rotations_map[move[1:]]
 
@@ -538,8 +588,8 @@ class Cube:
         return sol
 
     def remove_irrelevant_edge_buffers(self, edges, edge_buffer):
-        edges.pop(self.adj_edges[self.U_edges[2]])
-        edges.pop(self.U_edges[2])
+        edges.pop(self.adj_edges[self.default_edge_buffer])
+        edges.pop(self.default_edge_buffer)
 
         edge_buffer_order = self.edge_buffer_order.copy()
         for buff in edge_buffer_order:
@@ -550,13 +600,15 @@ class Cube:
                 break
         return edges
 
-    def drill_edge_sticker(self, sticker_to_drill):
+    def drill_edge_sticker(self, sticker_to_drill, single_cycle=True, return_list=False, cycles_to_exclude: set = None):
+        from solution import Solution
+
         # todo support starting from any buffer
         # support default certain alternate pseudo edge swaps depending on last corner target
-
+        scrambles = []
         all_edges = self.default_edges.copy()
-
-        buffer = "UF"
+        print(self.U_edges)
+        buffer = self.default_edge_buffer
         buffer_adj = self.adj_edges[buffer]
         all_edges.remove(buffer)
         all_edges.remove(buffer_adj)
@@ -565,60 +617,63 @@ class Cube:
         all_edges.remove(sticker_to_drill)
         all_edges.remove(adj)
         algs_to_drill = {sticker_to_drill + i for i in all_edges}
+        print(algs_to_drill)
         number = 0
-        print("This program generates scrambles that contain certain letter pairs")
-        frequency = int(input("Enter freq (recommended less than 3): "))
-        no_cycle_break_edge_memo = set()
+
+        if cycles_to_exclude is not None:
+            algs_to_drill = algs_to_drill.difference(cycles_to_exclude)
+            print('excluded these cycles', cycles_to_exclude)
+
+        if single_cycle:
+            frequency = 1
+        else:
+            frequency = int(input("Enter freq (recommended less than 3): "))
+
         no_repeat = True
         # I don't recommend going above 2 else it will take forever
-        while len(algs_to_drill) > frequency:
+        while len(algs_to_drill) >= frequency:
             scramble = get_scrambles.gen_premove(28, min_len=25)
-            cube = Cube(scramble, can_parity_swap=True)
+            cube = Cube(scramble, can_parity_swap=True, ls=self.ls)
             edge_memo = cube.format_edge_memo(cube.memo_edges()).split(' ')
+            no_cycle_break_edge_memo = set()
+            print("trying scramble:", scramble)
             last_added_pair = ''
-            no_cycle_break_edge_memo = set(edge_memo)
-
-            # todo check if scramble has odd num of flips and last pair is a target alg
-            #  i.e prevent breaking into flips from causing you to miss the target alg
-            #  or worse do the alg and then a flip alg
-            # print(corner_buffers)
-            no_cycle_break_edge_memo.clear()
             edge_buffers = cube.edge_memo_buffers
-            # print(edge_buffers)
             for pair in edge_memo:
-                # print(edge_memo)
-                # print(pair)
+                pair_len_half = len(pair) // 2
+                a = pair[:pair_len_half]
+                b = pair[pair_len_half:]
 
-                a = pair[:2]
-                b = pair[2:]
-                # print(a, b)
                 if a in edge_buffers or b in edge_buffers:
                     break
                 last_added_pair = pair
                 no_cycle_break_edge_memo.add(pair)
 
-            if algs_to_drill.intersection(last_added_pair) and (len(cube.flipped_edges) // 2) % 2 == 1:
+            # avoid missing a cycle due to breaking into a flipped edge
+            if last_added_pair in algs_to_drill and (len(cube.flipped_edges) // 2) % 2 == 1:
+                print('avoiding breaking into flip')
                 continue
 
-            # print("corner memo before cycle breaks", no_cycle_break_edge_memo)
             algs_in_scramble = algs_to_drill.intersection(no_cycle_break_edge_memo)
-
+            print(algs_to_drill, no_cycle_break_edge_memo)
             if len(algs_in_scramble) >= frequency:
-                # print(algs_to_drill.intersection(no_cycle_break_edge_memo))
-                print("Scramble:", scramble)
-                # todo make it so if you're no_repeat then allow to repeat the letter pairs
-                response = input('Enter "r" to repeat letter pairs: ')
+                print(scramble)
+                if not return_list:
+                    print("Scramble:", scramble)
+                    # todo make it so if you're no_repeat then allow to repeat the letter pairs
+                    response = input('Enter "r" to repeat letter pairs: ')
+                    if response == 'm':
+                        Solution(scramble).display()
+                        scrambles.append(scramble)
+                        response = input('Enter "r" to repeat letter pair(s): ')
 
-                if response == 'm':
-                    Solution(scramble).display()
-                    response = input('Enter "r" to repeat letter pair(s): ')
-
-                if response == 'r':
-                    pass
-                elif no_repeat:
+                    if response != 'r' and no_repeat:
+                        algs_to_drill = algs_to_drill.difference(algs_in_scramble)
+                    print()
+                else:
                     algs_to_drill = algs_to_drill.difference(algs_in_scramble)
-
-                print()
+                scrambles.append(scramble)
+        return scrambles
 
     def drill_edge_buffer(self, edge_buffer: str):
         # todo add edge flips
@@ -667,5 +722,9 @@ class Cube:
 
 
 if __name__ == "__main__":
-    c = Cube("U")
-    c.drill_edge_sticker("UL")
+    s = "F2 D2 R' D2 F2 R2 U2 B2 L2 R B' U' R F' D R U' B' D' L"
+    s = "L' R B U2 B' L2 R2 F2 L' R U' F2 U'"
+    c = Cube(s)
+    print(c.flipped_edges)
+    c.drill_edge_sticker('UB')
+    # c.drill_edge_sticker("UL")

@@ -30,11 +30,10 @@ while True:
         no_cycle_break_corner_memo.clear()
         corner_buffers = cube.corner_memo_buffers
         for pair in corner_memo:
-            print(pair)
-            if len(pair) == 6:
-
-                a = pair[:3]
-                b = pair[3:]
+            if len(pair) > 3:
+                pair_len_half = len(pair) // 2
+                a = pair[:pair_len_half]
+                b = pair[pair_len_half:]
             else:
                 a = pair
                 b = ''

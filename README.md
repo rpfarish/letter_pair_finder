@@ -14,7 +14,8 @@ Please note that the letters on the buffers are not important, but each of them 
 
 - to memorize the cube with these specific qualities: intelligent cycle breaking, memoing with alternate pseudoswaps,
   identifying: 2-flips, 2-twists, 3-twists, parity + twist, identifying floats, and trying to grade each of these
-  solutions with some sort of metric and potentially identify 3-twist/2-twist + parity recommended solutions
+  solutions with some sort of metric and potentially identify 3-twist/2-twist + parity recommended solutions. Maybe
+  using some metric like regrips or total moves
 - customizable lettering scheme for people who don't use Speffz
 
 ### Generate Training Scrambles
