@@ -607,7 +607,6 @@ class Cube:
         # support default certain alternate pseudo edge swaps depending on last corner target
         scrambles = []
         all_edges = self.default_edges.copy()
-        print(self.U_edges)
         buffer = self.default_edge_buffer
         buffer_adj = self.adj_edges[buffer]
         all_edges.remove(buffer)
@@ -617,12 +616,10 @@ class Cube:
         all_edges.remove(sticker_to_drill)
         all_edges.remove(adj)
         algs_to_drill = {sticker_to_drill + i for i in all_edges}
-        print(algs_to_drill)
         number = 0
 
         if cycles_to_exclude is not None:
             algs_to_drill = algs_to_drill.difference(cycles_to_exclude)
-            print('excluded these cycles', cycles_to_exclude)
 
         if single_cycle:
             frequency = 1
@@ -636,7 +633,6 @@ class Cube:
             cube = Cube(scramble, can_parity_swap=True, ls=self.ls)
             edge_memo = cube.format_edge_memo(cube.memo_edges()).split(' ')
             no_cycle_break_edge_memo = set()
-            print("trying scramble:", scramble)
             last_added_pair = ''
             edge_buffers = cube.edge_memo_buffers
             for pair in edge_memo:
@@ -651,13 +647,10 @@ class Cube:
 
             # avoid missing a cycle due to breaking into a flipped edge
             if last_added_pair in algs_to_drill and (len(cube.flipped_edges) // 2) % 2 == 1:
-                print('avoiding breaking into flip')
                 continue
 
             algs_in_scramble = algs_to_drill.intersection(no_cycle_break_edge_memo)
-            print(algs_to_drill, no_cycle_break_edge_memo)
             if len(algs_in_scramble) >= frequency:
-                print(scramble)
                 if not return_list:
                     print("Scramble:", scramble)
                     # todo make it so if you're no_repeat then allow to repeat the letter pairs
@@ -673,7 +666,82 @@ class Cube:
                 else:
                     algs_to_drill = algs_to_drill.difference(algs_in_scramble)
                 scrambles.append(scramble)
-        return scrambles
+        if return_list:
+            return scrambles
+
+    def drill_corner_sticker(self, sticker_to_drill, single_cycle=True, return_list=False,
+                             cycles_to_exclude: set = None):
+        from solution import Solution
+
+        # todo support starting from any buffer
+        # support default certain alternate pseudo edge swaps depending on last corner target
+        scrambles = []
+
+        all_corners = self.default_edges.copy()
+        buffer = self.default_corner_buffer
+        buffer_adj1, buffer_adj2 = self.adj_corners[buffer]
+        all_corners.remove(buffer)
+        all_corners.remove(buffer_adj1)
+        all_corners.remove(buffer_adj2)
+
+        adj1, adj2 = self.adj_corners[sticker_to_drill]
+        all_corners.remove(sticker_to_drill)
+        all_corners.remove(adj1)
+        all_corners.remove(adj2)
+        algs_to_drill = {sticker_to_drill + i for i in all_corners}
+        number = 0
+
+        if cycles_to_exclude is not None:
+            algs_to_drill = algs_to_drill.difference(cycles_to_exclude)
+
+        if single_cycle:
+            frequency = 1
+        else:
+            frequency = int(input("Enter freq (recommended less than 3): "))
+
+        no_repeat = True
+        # I don't recommend going above 2 else it will take forever
+        while len(algs_to_drill) >= frequency:
+            scramble = get_scrambles.gen_premove(28, min_len=25)
+            cube = Cube(scramble, can_parity_swap=True, ls=self.ls)
+            corner_memo = cube.format_corner_memo(cube.memo_corners()).split(' ')
+            no_cycle_break_corner_memo = set()
+            last_added_pair = ''
+            corner_buffers = cube.corner_memo_buffers
+            for pair in corner_memo:
+                if len(pair) > 3:
+                    pair_len_half = len(pair) // 2
+                    a = pair[:pair_len_half]
+                    b = pair[pair_len_half:]
+                else:
+                    a = pair
+                    b = ''
+
+                if a in corner_buffers or b in corner_buffers:
+                    break
+                no_cycle_break_corner_memo.add(pair)
+
+            algs_in_scramble = algs_to_drill.intersection(no_cycle_break_corner_memo)
+
+            if len(algs_in_scramble) >= frequency:
+                if not return_list:
+                    print("Scramble:", scramble)
+                    # todo make it so if you're no_repeat then allow to repeat the letter pairs
+                    response = input('Enter "r" to repeat letter pairs: ')
+                    if response == 'm':
+                        Solution(scramble).display()
+                        scrambles.append(scramble)
+                        response = input('Enter "r" to repeat letter pair(s): ')
+
+                    if response != 'r' and no_repeat:
+                        algs_to_drill = algs_to_drill.difference(algs_in_scramble)
+                    print()
+                else:
+                    algs_to_drill = algs_to_drill.difference(algs_in_scramble)
+                scrambles.append(scramble)
+
+        if return_list:
+            return scrambles
 
     def drill_edge_buffer(self, edge_buffer: str):
         # todo add edge flips
